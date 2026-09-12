@@ -1,6 +1,6 @@
 ---
 name: project-learner
-description: "Interactive project learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project, via interview-style Q&A. Reads DEV_SPEC.md plus BOTH the reference source project (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/, dynamically generates questions per knowledge domain and sub-topic, conducts up to 4 follow-up rounds, scores answers, gives learning guidance with file/line references, and persists progress. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '检验我', '抽查', '了解项目', '项目学习', '面试准备', 'learn project', 'study project', 'review project', 'interview prep', 'knowledge check', or wants to master the 烛照 / ZhuZhao project through guided Q&A."
+description: "Interactive project learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project, via interview-style Q&A. Reads DEV_SPEC.md plus BOTH the reference source project (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/, dynamically generates questions per knowledge domain and sub-topic, conducts up to 4 follow-up rounds, scores answers, gives learning guidance with file/line references, and persists progress. Uses a three-stage study model: 预习 (study the reference), 自建 (quiz your own code), 对照 (compare the two), with scores tracked per stage. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '检验我', '抽查', '了解项目', '项目学习', '面试准备', 'learn project', 'study project', 'review project', 'interview prep', 'knowledge check', or wants to master the 烛照 / ZhuZhao project through guided Q&A."
 ---
 
 # Project Learner — ZhuZhaoGUI (烛照)
@@ -25,17 +25,29 @@ Questions MUST be grounded in **real code**, never invented from the spec alone.
 | `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\**` | **Answer key.** Always consult this first — it is the authoritative implementation. Give answers with `file:line`. |
 | The workspace's own `src/` | **Comparison target.** Check what the user has actually written so far. |
 
-Because the user is *replicating*, prefer questions that surface **divergence**:
-
-- If the user's version of a file does not exist yet → ask a pure "源工程" question (pre-study mode).
-- If it exists → ask a **comparison** question: "你的实现和源工程差在哪？为什么？" Divergence is where learning happens.
-
 Never treat `DEV_SPEC.md` as the answer key — it is a navigation aid pointing at which files/chapters to read.
+
+### Three-Stage Study Model
+
+The user replicates the project in three passes, so **the same sub-topic is studied three times at increasing difficulty**. Scores are kept separate per stage.
+
+| 阶段 | 考察对象 | 典型问题 | 难度 |
+|------|---------|---------|------|
+| **① 预习** | 源工程 `ZhuZhao-V1.2.0` | "老师是怎么做的？为什么这么做？" | 低 |
+| **② 自建** | 用户自己的 `src/` | "你是怎么做的？和老师一样吗？" | 中 |
+| **③ 对照** | 两边同时 | "差异在哪？哪个更好？为什么？" | 高 |
+
+Rules:
+
+- Stage **①** may be answered **before the user has written any code** — that is its whole point.
+- Stage **②** requires the user's own file to exist. If it does not exist yet, tell the user and offer to drop back to ①.
+- Stage **③** requires both sides to exist. It is the hardest stage and should focus on *divergence and trade-offs*, never on restating what either side does.
+- A sub-topic is only "truly done" when stage ③ is complete, but each stage is scored independently — do not let a good ① score imply mastery.
 
 ## Pipeline Overview
 
 ```
-Discovery → Check History → User Intent → Select Domain → Select Sub-topic
+Discovery → Check History → User Intent → Select Stage → Select Domain → Select Sub-topic
 → Generate Question → Interactive Q&A (<=4 follow-ups) → Evaluate
 → Learning Guide → Persist Progress → Continue or End
 ```
@@ -51,7 +63,7 @@ Autonomously build project understanding. Do NOT ask the user anything yet.
    - `ZhuZhaoGUI\` — 14 classes + `ZhuZhaoGUI.pro` + `ZhuzhaoGuiRes.qrc`
    - `PhotometricStereo\` — `PhotometricStereo.h/.cpp`, `ExampleMain.cpp`, `CMakeLists.txt`
    - `bin\` — `PhotometricStereoDLL.dll/.lib`, `images/` (5 sample sets + `Tilts_Slants.txt`)
-3. Read the workspace's own `src/ZhuZhaoGUI/` to see which files the user has written so far
+3. Read the workspace's own `src/ZhuZhaoGUI/` to see **which files the user has actually written so far** — this decides stage availability for ② and ③
 4. Deep-read the key entry points when a sub-topic requires it — never rely on memory of the code
 
 Build an internal mental model covering these **10 Knowledge Domains**, each with **4-5 Sub-topics** (知识点), totaling **48 knowledge points**.
@@ -122,7 +134,19 @@ Build an internal mental model covering these **10 Knowledge Domains**, each wit
 | D10.4 | CMake 工程配置：`add_library(... SHARED)`、四个输出目录变量、`FIND_PACKAGE(OpenCV REQUIRED)` | `PhotometricStereo/CMakeLists.txt` |
 
 > **Total: 10 domains x 4-5 sub-topics = 48 knowledge points**
-> Each sub-topic can be revisited from different angles, yielding 100+ possible questions.
+> Each sub-topic can be studied three times (① ② ③), yielding 100+ possible questions.
+
+### Domain ↔ Replication Stage
+
+`DEV_SPEC.md` §6 splits the replication into five stages. Use this map to align questions with what the user is actually building right now — when they say "我做到阶段 C 了", prefer the matching domains.
+
+| 复刻阶段（DEV_SPEC §6） | 对应知识域 | 何时可用 |
+|----------------------|-----------|---------|
+| **A** 工程骨架与构建基座 ✅ | D1 | 已完成，可直接考 ①/②/③ |
+| **B** 前端地基：观察者 + 日志 | D2, D3 | 代码写完即可进入 ② |
+| **C** 主窗口与视觉窗口 | D4, D5, D6, D7 | 代码写完即可进入 ② |
+| **D** 参数配置与多线程 | D8（+ D4 的布局部分） | 代码写完即可进入 ② |
+| **E** 光度立体算法动态库 | D9, D10 | 代码写完即可进入 ② |
 
 ---
 
@@ -130,11 +154,17 @@ Build an internal mental model covering these **10 Knowledge Domains**, each wit
 
 1. Read `.skills/project-learner/references/LEARNING_PROGRESS.md`
 2. **File missing** → first-time learner, proceed to Phase 3
-3. **File exists** → parse BOTH tables:
-   - **Domain Summary**: which domains are ⬜/🔴/🔶/✅
-   - **Sub-topic Progress**: which sub-topics are ⬜ (unlearned), 🔴 (weak <=3), 🔶 (learning 4-6), ✅ (mastered >=7)
-   - Count: total sub-topics mastered / 48
-   - Identify lowest-scoring sub-topics for review recommendation
+3. **File exists** → parse the three tables:
+   - **Domain Summary**: per domain, the `①预习/②自建/③对照` completion counts (`n/total`) and 状态
+   - **Sub-topic Progress**: per sub-topic, the three stage scores (`-` = not yet studied in that stage) and 状态
+   - **Detailed History**: the chronological log, newest last
+4. Compute:
+   - Total mastered: count of sub-topics whose 状态 is ✅ (i.e. latest completed stage scored >=7) / 48
+   - Per-stage totals: how many sub-topics have any score in ① / ② / ③
+   - Sub-topics eligible for the next stage — e.g. has ① but no ②, and the user's `src/` file now exists
+   - Weakest sub-topics (latest-stage score <=3) for review recommendation
+
+**Status derivation rule** (must match the progress file): 状态 comes from the **latest completed stage** — ③ if scored, else ②, else ①; all three empty → ⬜ 未学习. Bands: `>=7` ✅ 掌握 · `4-6` 🔶 学习中 · `<=3` 🔴 薄弱.
 
 ---
 
@@ -153,50 +183,77 @@ Use `ask_questions` (中文) to determine what the user wants:
 
 If user picks 📋 → display the full progress table from `LEARNING_PROGRESS.md` and stop.
 
-If user picks 🎯 → Agent auto-selects the optimal sub-topic (prioritize: ⬜ unlearned in weakest domain → 🔴 weak → 🔶 lowest score). Skip Question 2 & 3, go directly to Phase 4.
+If user picks 🎯 → Agent auto-selects the optimal sub-topic **and stage** (prioritize: ① unlearned in weakest domain → ② where the user's file now exists → ③ where both exist → review 🔴). Skip Question 2-4, go directly to Phase 4.
 
-**Question 2 — 知识域选择** (single-select, only for 🆕 or 📖):
+**Question 2 — 学习阶段** (single-select, only for 🆕 or 📖):
 
-List all 10 domains with current status + completion rate. Example format:
-- `D2 观察者模式与单例 [2/5 ✅] 🔶`
-- `D9 光度立体算法 [0/5 ✅] ⬜`
+| Option | Description |
+|--------|------------|
+| 🎯 Agent 按进度自动 | Let the Agent advance the stage for the chosen sub-topic |
+| ① 预习 | 只看源工程 —— "老师是怎么做的" |
+| ② 自建 | 考你自己写的代码 —— "你是怎么做的" |
+| ③ 对照 | 两边比差异 —— "为什么不一样，哪个更好" |
 
-For 📖 mode: only show domains with previous scores. For 🆕 mode: prioritize domains with most ⬜ sub-topics.
+When the user picks ① / ② / ③ explicitly, validate availability in Phase 4 before generating:
+- ② requires the user's own corresponding file to exist
+- ③ requires both sides to exist
+If the requirement is unmet, say so (中文) and offer to fall back to the previous stage.
 
-> **Ordering hint**: D1–D4 and D6–D8 map onto the replication stages B–D, so the user has written (or is writing) that code right now. D5, D9 and D10 are the algorithm/library side and are usually studied later. Prefer suggesting sub-topics the user can still see in their own editor.
+**Question 3 — 知识域选择** (single-select, only for 🆕 or 📖):
 
-**Question 3 — 知识点选择** (single-select, only after Question 2):
+List all 10 domains with current status + completion rate, and annotate the stage availability. Example format:
+- `D2 观察者模式与单例 [①5/5 ②2/5 ③0/5] 🔶 可进入 ②`
+- `D9 光度立体算法 [①0/5 ②0/5 ③0/5] ⬜ 可进入 ①`
 
-List all sub-topics under the selected domain with their status:
-- `D2.1 ZZListener 抽象基类设计 ⬜ 未学习`
-- `D2.4 registerMessage 位与拆包 🔶 6/10`
-- `D2.5 notify 查表广播 ✅ 8/10`
+For 📖 mode: only show domains with previous scores. For 🆕 mode: prioritize domains with most unlearned sub-topics.
+
+> **Ordering hint**: D1–D4 and D6–D8 map onto replication stages A–D, so the user has written (or is writing) that code right now. D5, D9 and D10 are the algorithm/library side and are usually studied later. Prefer suggesting sub-topics the user can still see in their own editor.
+
+**Question 4 — 知识点选择** (single-select, only after Question 3):
+
+List all sub-topics under the selected domain with per-stage status:
+- `D2.1 ZZListener 抽象基类设计 ①- ②- ③- 未学习`
+- `D2.4 registerMessage 位与拆包 ①8 ②6 ③- 可进入 ③`
+- `D2.5 notify 查表广播 ①9 ②8 ③8 ✅ 掌握`
 
 Include option:
-- 🎯 Agent 推荐 — auto-pick the weakest/unlearned sub-topic in this domain
+- 🎯 Agent 推荐 — auto-pick the weakest / most advanced eligible sub-topic in this domain
 
 ---
 
 ## Phase 4: Generate Interview Question
 
-Based on the selected **sub-topic** (not just domain):
+Based on the selected **sub-topic** (not just domain) and the selected **stage**:
 
-1. **Deep-read** the sub-topic's specific source code in the REFERENCE project — actual class definitions, key functions, the exact lines listed in the Sub-topic Map. Read the file; do not answer from memory.
-2. Check the workspace's own `src/` for the corresponding file to decide between 源工程题 and 对照题 (see Two-Source Rule).
+1. **Determine the stage.** If the user chose "Agent 按进度自动", derive it: no ① score → ①; has ① but no ② and the user's file exists → ②; has ①+② and both sides exist → ③; otherwise repeat the latest stage with a new angle.
+2. **Read the actual source for that stage** — do not answer from memory:
+   - ① → read the reference file in `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\`
+   - ② → read the user's own file in `src/ZhuZhaoGUI/` (and the reference only to know what to avoid asking)
+   - ③ → read BOTH, and diff them mentally before writing the question
 3. **Dynamically generate** ONE main interview question (中文) grounded in real code
 4. **Internally prepare** up to 4 progressive follow-up questions (do NOT show these yet)
-5. **Avoid repeating** questions from previous sessions — check Detailed History for this sub-topic and pick a different angle
+5. **Avoid repeating** questions — check Detailed History for this sub-topic at the same stage and pick a different angle
 
 ### Question Design Principles
 
 - Questions MUST reference real code, file paths and behavior of THIS project, never generic Qt/C++ trivia
 - Questions should be scoped to the sub-topic, not the whole domain
-- Difficulty progression for follow-ups:
-  - Follow-up 1: "为什么这样设计？" (design rationale)
-  - Follow-up 2: "和替代方案对比有什么优劣？" (trade-offs)
-  - Follow-up 3: "边界条件/异常情况怎么处理？" (edge cases)
-  - Follow-up 4: "如果让你重新设计，会怎么做？" (redesign thinking)
-- Adjust follow-ups dynamically based on what the user actually answers
+
+### Per-Stage Question Style
+
+| 阶段 | 出题对象 | 典型句式 |
+|------|---------|---------|
+| **① 预习** | 源工程 | "源工程的 `X` 是怎么做的？为什么用这种方式？" 答案必须能落到 `file:line` |
+| **② 自建** | 用户自己的代码 | "你写的 `X` 里，这段为什么这么写？如果换成源工程的做法会怎样？"；若用户尚未写该文件则先询问是否可以退到 ① |
+| **③ 对照** | 两边差异 | "你的 `X` 和源工程差在哪？这个差异是有意的吗？哪种更合适？" |
+
+Difficulty progression for follow-ups (all stages):
+- Follow-up 1: "为什么这样设计？" (design rationale)
+- Follow-up 2: "和替代方案对比有什么优劣？" (trade-offs)
+- Follow-up 3: "边界条件/异常情况怎么处理？" (edge cases)
+- Follow-up 4: "如果让你重新设计，会怎么做？" (redesign thinking)
+
+Adjust follow-ups dynamically based on what the user actually answers.
 
 ### Question Angle Variety
 
@@ -230,9 +287,9 @@ Grounded answers must cite `file:line` in the reference project.
 ```
 ## 🎯 面试问题
 
-**知识域**: [Domain Name] > **知识点**: [Sub-topic Name]
+**知识域**: [Domain Name] > **知识点**: [Sub-topic Name] > **阶段**: [① 预习 / ② 自建 / ③ 对照]
 
-**面试官问**: [Question text — specific to this sub-topic, referencing real project components]
+**面试官问**: [Question text — specific to this sub-topic and this stage, referencing real project components]
 
 请回答：
 ```
@@ -275,7 +332,8 @@ After Q&A ends, output a structured evaluation report (中文):
 ```markdown
 ## 📊 评价报告
 
-**知识域**: [Domain] > **知识点**: [Sub-topic ID & Name] — [Question summary]
+**知识域**: [Domain] > **知识点**: [Sub-topic ID & Name]
+**阶段**: [① 预习 / ② 自建 / ③ 对照]
 **追问轮数**: N/4
 
 ### ✅ 回答亮点
@@ -295,13 +353,18 @@ After Q&A ends, output a structured evaluation report (中文):
 | 代码关联 | X/10 | [Did they reference actual code/config] |
 | 设计思维 | X/10 | [Trade-off analysis, architecture reasoning] |
 
-### 🏆 综合评分: X/10
+### 🏆 本阶段综合评分: X/10
 
-### 📊 学习进度: [mastered count]/48 知识点已掌握
+### 📊 该知识点进度
+①预习 [X or -] · ②自建 [X or -] · ③对照 [X or -] · 状态 [⬜/🔴/🔶/✅]
+
+### 📊 总进度
+①预习 X/48 · ②自建 X/48 · ③对照 X/48 · 三阶段完成 X/48
 ```
 
 Scoring rules:
 - Average of 4 dimensions, rounded to nearest 0.5
+- **Score in the context of the stage.** A stage-① answer is scored on "did they read the reference correctly"; a stage-③ answer on "did they analyse the divergence". Do not inflate a stage-① score into implied mastery — say explicitly that ② and ③ are still pending.
 - 9-10: Expert level, can explain design decisions and trade-offs
 - 7-8: Solid understanding, knows how and why
 - 4-6: Basic understanding, knows what but not deep why
@@ -320,7 +383,7 @@ Immediately after evaluation, provide targeted study resources (中文):
 
 ### 📂 相关代码
 - `[源工程相对路径]` L[X]-L[Y] — 说明这段代码的作用和关键逻辑
-- `[你自己的工作区文件]` — 与源工程的差异点
+- `[你自己的工作区文件]` — 与源工程的差异点（②③ 阶段必给）
 
 ### 📄 相关文档
 - [DEV_SPEC.md 对应章节](DEV_SPEC.md) — 设计原理
@@ -352,20 +415,21 @@ If the file doesn't exist, create it from the template in [references/LEARNING_P
 
 ### Update Rules
 
-1. **Append** one row to the `Detailed History` table (include Sub-topic ID)
-2. **Update** the `Sub-topic Progress` table for the affected sub-topic:
-   - 已学 = count of sessions for that sub-topic
-   - 最高分 = max score across all sessions for this sub-topic
-   - 最近分 = score from this session
-   - Status: >=7 → ✅ 掌握, 4-6 → 🔶 学习中, <=3 → 🔴 薄弱, 0 sessions → ⬜ 未学习
-3. **Recalculate** the `Domain Summary` table:
-   - 已掌握 = count of ✅ sub-topics in that domain / total sub-topics in domain
-   - 已学习 = count of non-⬜ sub-topics / total sub-topics
-   - 平均分 = average score of all studied sub-topics in domain
-   - Domain status: all sub-topics ✅ → ✅ 掌握, any studied → 🔶 学习中 or 🔴 薄弱 (based on avg), none → ⬜ 未学习
+1. **Append** one row to the `Detailed History` table — columns are
+   `| # | Date | 阶段 | 知识点 ID | 知识点 | 问题 | 评分 | 追问轮数 | 薄弱点 |`
+2. **Update** the `Sub-topic Progress` row for the affected sub-topic — write the score into the **stage column that was just examined**:
+   - Only ever raise a stage column (`max` of the old value and this session's score) — never lower it
+   - Leave the other stage columns untouched
+   - Recompute 状态 from the latest completed stage (③ → ② → ①, see Phase 2 rule)
+3. **Recalculate** the `Domain Summary` row for that domain:
+   - `①预习 / ②自建 / ③对照` columns = count of sub-topics in this domain that have **any** score in that stage, written as `n/total`
+   - `最新均分` = average of each sub-topic's latest completed stage score (skip sub-topics with no score)
+   - 状态: all ✅ → ✅ 掌握; some studied → 🔶 学习中 or 🔴 薄弱 (based on the average); none → ⬜ 未学习
 4. **Update** the `Last updated` timestamp
-5. **Update** the session counter `#` (auto-increment)
-6. **Update** the overall progress line: `总进度: X/48 知识点已掌握`
+5. **Update** the session counter `#` (auto-increment, replacing the `-` placeholder row on first use)
+6. **Update** the header progress lines:
+   - `总进度: X/48 知识点已掌握`
+   - `阶段进度: ①预习 X/48 · ②自建 X/48 · ③对照 X/48`
 
 ---
 
@@ -376,7 +440,7 @@ After persisting, ask the user (中文):
 | Option | Action |
 |--------|--------|
 | 🔄 继续学习下一个知识点 | Loop back to Phase 3 |
-| 🎯 Agent 推荐下一个 | Auto-pick optimal next sub-topic, go to Phase 4 |
+| 🎯 Agent 推荐下一个 | Auto-pick optimal next sub-topic **and stage**, go to Phase 4 |
 | 📋 查看当前学习进度 | Display full progress table |
 | 🏁 结束本次学习 | Show session summary, stop |
 
@@ -385,13 +449,13 @@ After persisting, ask the user (中文):
 ```markdown
 ## 📝 本次学习总结
 
-- 完成知识点: N 个
-- 平均得分: X/10
+- 完成知识点: N 个（阶段分布：① X 个 / ② X 个 / ③ X 个）
+- 本次平均得分: X/10
 - 最强知识点: [sub-topic] (X/10)
 - 需加强知识点: [sub-topic] (X/10)
-- 总进度: X/48 知识点已掌握 (XX%)
+- 总进度: ①预习 X/48 · ②自建 X/48 · ③对照 X/48
 
-继续加油！下次建议学习: [recommended sub-topic name]
+继续加油！下次建议学习: [recommended sub-topic name + 阶段]
 ```
 
 ---
@@ -400,7 +464,7 @@ After persisting, ask the user (中文):
 
 | File | Purpose |
 |------|---------|
-| `.skills/project-learner/references/LEARNING_PROGRESS.md` | Persistent learning state (48 sub-topics) |
+| `.skills/project-learner/references/LEARNING_PROGRESS.md` | Persistent learning state (48 sub-topics x 3 stages) |
 | `DEV_SPEC.md` | Project spec: architecture, tech-stack deltas, 5-stage plan, known issues |
 | `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\ZhuZhaoGUI\` | Reference front-end source (answer key) |
 | `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\PhotometricStereo\` | Reference algorithm DLL source (answer key) |
