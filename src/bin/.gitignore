@@ -13,6 +13,12 @@ log/
 /ZhuZhaoGUI.exe
 /ExampleMain.exe
 
+# OpenCV 运行时 DLL（本地依赖，单个 60~125 MB，不入库）
+# 需要时从 D:\QT6\opencv-4.6.0\opencv\build\x64\vc15\bin 拷到本目录即可：
+#   Debug   用 opencv_world460d.dll
+#   Release 用 opencv_world460.dll
+/opencv_world*.dll
+
 # 说明：以下内容【故意不忽略】，需要随工程提交
 #   PhotometricStereoDLL.dll / .lib  算法动态库，前端链接与运行都要用
 #   images/                          示例图像数据
