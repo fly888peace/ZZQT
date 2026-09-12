@@ -1,0 +1,81 @@
+# ==========================================================
+# 烛照 ZhuZhaoGUI 复刻工程
+# ==========================================================
+
+# ---------- 工作区/工具目录 ----------
+# Agent 工作区数据（记忆、技能等），不入库
+.workbuddy/
+
+# ---------- Qt Creator 用户配置 ----------
+# .pro.user 记录的是「本机的 Kit 与构建目录」，换机器就失效，不能提交
+*.pro.user
+*.pro.user.*
+.qtcreator/
+
+# ---------- 构建产物 ----------
+# Qt Creator 影子构建目录：build/<Kit>_<Config>/
+build/
+build-*/
+debug/
+release/
+Debug/
+Release/
+RelWithDebInfo/
+x64/
+Win32/
+
+# ---------- 编译中间文件 ----------
+*.obj
+*.o
+*.res
+*.pch
+*.pdb
+*.idb
+*.ilk
+*.exp
+*.tlog
+*.lastbuildstate
+*.log
+*.aps
+
+# ---------- Qt 自动生成 ----------
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.moc
+Makefile*
+qmake.stash
+*.qmake.cache
+.qmake.stash
+
+# ---------- CMake（PhotometricStereo 算法库） ----------
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+CTestTestfile.cmake
+install_manifest.txt
+compile_commands.json
+
+# ---------- 程序运行期日志 ----------
+# ZZLogMessage 会在运行目录下生成 log/yyyy-MM-dd/log.txt
+log/
+
+# ---------- IDE / 操作系统 ----------
+.vs/
+.idea/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# ==========================================================
+# 说明：以下内容故意「不」忽略，需要随工程一起提交
+#   src/bin/PhotometricStereoDLL.dll / .lib  算法动态库产物（前端链接必需）
+#   src/bin/images/*.png                     示例图像数据
+#   src/ZhuZhaoGUI/Resouce/**                qrc 引用的图标与翻译文件
+# ==========================================================
