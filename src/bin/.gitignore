@@ -1,0 +1,18 @@
+# src/bin —— 编译产物与运行资源集中目录（.pro 里 DESTDIR 指向这里）
+
+# 程序运行时日志：ZZLogMessage 会生成 log/yyyy-MM-dd/log.txt
+log/
+
+# 编译中间文件
+*.pdb
+*.ilk
+*.exp
+*.tlog
+
+# 前端可执行文件（每次编译都会重新生成，不入库）
+/ZhuZhaoGUI.exe
+/ExampleMain.exe
+
+# 说明：以下内容【故意不忽略】，需要随工程提交
+#   PhotometricStereoDLL.dll / .lib  算法动态库，前端链接与运行都要用
+#   images/                          示例图像数据

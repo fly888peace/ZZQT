@@ -1,0 +1,12 @@
+<RCC>
+    <qresource prefix="/">
+        <file>Resouce/icon/zhuzhao.ico</file>
+        <file>Resouce/icon/clear.png</file>
+        <file>Resouce/icon/helper.png</file>
+        <file>Resouce/icon/loadimg.png</file>
+        <file>Resouce/icon/reset.png</file>
+        <file>Resouce/icon/runonce.png</file>
+        <file>Resouce/icon/nullImg.png</file>
+        <file>Resouce/translate/language_ch.qm</file>
+    </qresource>
+</RCC>

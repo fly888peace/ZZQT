@@ -1,0 +1,4 @@
+占位文件：本目录用于存放光度立体算法库（CMake 工程）
+课程「阶段三」在这里创建 PhotometricStereo.cpp/.h + CMakeLists.txt，
+用 CMake 编译出 PhotometricStereoDLL.lib/.dll，产物会输出到 ../bin。
+届时把 src/ZhuZhaoGUI/ZhuZhaoGUI.pro 里那段被注释的算法库配置打开即可。

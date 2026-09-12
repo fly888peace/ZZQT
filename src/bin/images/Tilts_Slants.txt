@@ -1,0 +1,2 @@
+vector<float> Tilts = { 6.1,95.0,-176.1,-86.8 };
+vector<float> Slants = { 41.4,42.6,41.7,40.9 };
