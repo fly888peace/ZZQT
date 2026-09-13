@@ -1,6 +1,6 @@
 ---
 name: project-learner
-description: "Interactive project learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project, via interview-style Q&A. Reads DEV_SPEC.md plus BOTH the reference source project (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/, dynamically generates questions per knowledge domain and sub-topic, conducts up to 4 follow-up rounds, scores answers, gives learning guidance with file/line references, and persists progress. Uses a three-stage study model: 预习 (study the reference), 自建 (quiz your own code), 对照 (compare the two), with scores tracked per stage. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '检验我', '抽查', '了解项目', '项目学习', '面试准备', 'learn project', 'study project', 'review project', 'interview prep', 'knowledge check', or wants to master the 烛照 / ZhuZhao project through guided Q&A."
+description: "Interactive learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project. For each knowledge point it FIRST delivers a 预习课 (a grounded mini-lesson on how the reference implementation works, citing file:line), THEN adds one self-test question with up to 4 follow-up rounds, scoring and a learning guide. Reads DEV_SPEC.md plus BOTH the reference source (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/. Work is organised by 知识域: pre-study a whole domain before implementing it. Stage ① 预习 is the default; stages ② 自建 and ③ 对照 are ON DEMAND only, run them only when the user explicitly asks. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '预习课', '检验我', '抽查', '面试准备', 'learn project', 'study project', 'interview prep', 'knowledge check'."
 ---
 
 # Project Learner — ZhuZhaoGUI (烛照)
@@ -39,18 +39,28 @@ The user replicates the project in three passes, so **the same sub-topic is stud
 
 Rules:
 
-- Stage **①** may be answered **before the user has written any code** — that is its whole point.
-- Stage **②** requires the user's own file to exist. If it does not exist yet, tell the user and offer to drop back to ①.
-- Stage **③** requires both sides to exist. It is the hardest stage and should focus on *divergence and trade-offs*, never on restating what either side does.
-- A sub-topic is only "truly done" when stage ③ is complete, but each stage is scored independently — do not let a good ① score imply mastery.
+- **Only stage ① runs by default.** Stages ② and ③ are **on demand** — the user is time-constrained and will explicitly ask when he wants them. **Never auto-advance to ② or ③, never offer them as an option, and never nag about them.**
+- Stage ① = **预习课 + 自测题**, always in that order. The lesson comes first and is mandatory (see Phase 4). The user is learning the teacher's course *before* writing his own code, so ① must be self-contained — assume he has not read the source file yet.
+- Stage **②** requires the user's own file to exist. Stage **③** requires both sides to exist. If he asks for one whose precondition is unmet, say so and offer the previous stage.
+- A sub-topic is only "truly done" when stage ③ is complete, but each stage is scored independently — never let a good ① score imply mastery.
+
+### Work Unit: one 知识域 at a time
+
+The user pre-studies **an entire knowledge domain**, then implements that domain, and only later comes back to compare. So:
+
+- The default advance order is **within one domain, sub-topic by sub-topic** (D1.1 → D1.2 → … → D1.5). Do not hop between domains unless he asks.
+- When every sub-topic in a domain has a ① score, output a short **域预习完成小结** (what was covered, the weakest sub-topic, and which replication stage in `DEV_SPEC.md` §6 this domain corresponds to). Then tell him he can go implement it. **Do not push him into ②.**
+- ②/③ for that domain happen later, whenever he says so.
 
 ## Pipeline Overview
 
 ```
-Discovery → Check History → User Intent → Select Stage → Select Domain → Select Sub-topic
-→ Generate Question → Interactive Q&A (<=4 follow-ups) → Evaluate
+Discovery → Check History → User Intent → Select Domain → Select Sub-topic
+→ 【预习课】grounded lesson → 自测题 → Interactive Q&A (<=4 follow-ups) → Evaluate
 → Learning Guide → Persist Progress → Continue or End
 ```
+
+② 自建 and ③ 对照 are **on-demand branches** of the same pipeline — different source and question style, triggered only by an explicit user request.
 
 ---
 
@@ -183,69 +193,93 @@ Use `ask_questions` (中文) to determine what the user wants:
 
 If user picks 📋 → display the full progress table from `LEARNING_PROGRESS.md` and stop.
 
-If user picks 🎯 → Agent auto-selects the optimal sub-topic **and stage** (prioritize: ① unlearned in weakest domain → ② where the user's file now exists → ③ where both exist → review 🔴). Skip Question 2-4, go directly to Phase 4.
+If user picks 🎯 → Agent auto-selects the optimal sub-topic: **stay inside the user's current domain**, pick the first sub-topic in implementation order that has no ① score; if that domain is fully pre-studied, recommend the next domain in `DEV_SPEC.md` §6 order. Skip Question 2-3, go directly to Phase 4 with stage ①.
 
-**Question 2 — 学习阶段** (single-select, only for 🆕 or 📖):
+**Stage selection — no question.** Default to **① 预习**. Switch to ② 自建 or ③ 对照 **only** when the user explicitly asks this session (e.g. "考我自建" / "对照考我"). Never list ②/③ as an option, never recommend them, never suggest them at the end of a session.
 
-| Option | Description |
-|--------|------------|
-| 🎯 Agent 按进度自动 | Let the Agent advance the stage for the chosen sub-topic |
-| ① 预习 | 只看源工程 —— "老师是怎么做的" |
-| ② 自建 | 考你自己写的代码 —— "你是怎么做的" |
-| ③ 对照 | 两边比差异 —— "为什么不一样，哪个更好" |
+**Question 2 — 知识域选择** (single-select, only for 🆕 or 📖):
 
-When the user picks ① / ② / ③ explicitly, validate availability in Phase 4 before generating:
-- ② requires the user's own corresponding file to exist
-- ③ requires both sides to exist
-If the requirement is unmet, say so (中文) and offer to fall back to the previous stage.
+List all 10 domains with current ① progress, and mark the one the user is currently pre-studying. Example format:
+- `D1 工程组织与构建体系 [①3/5] 🔶 当前预习中`
+- `D9 光度立体算法 [①0/5] ⬜ 未开始`
 
-**Question 3 — 知识域选择** (single-select, only for 🆕 or 📖):
+For 📖 mode: only show domains with previous scores. For 🆕 mode: default to the domain he is currently pre-studying.
 
-List all 10 domains with current status + completion rate, and annotate the stage availability. Example format:
-- `D2 观察者模式与单例 [①5/5 ②2/5 ③0/5] 🔶 可进入 ②`
-- `D9 光度立体算法 [①0/5 ②0/5 ③0/5] ⬜ 可进入 ①`
+> **Ordering hint**: D1–D4 and D6–D8 map onto replication stages A–D. D5, D9 and D10 are the algorithm/library side. **Prefer staying inside the current domain** — the user pre-studies one domain at a time.
 
-For 📖 mode: only show domains with previous scores. For 🆕 mode: prioritize domains with most unlearned sub-topics.
+**Question 3 — 知识点选择** (single-select, only after Question 2):
 
-> **Ordering hint**: D1–D4 and D6–D8 map onto replication stages A–D, so the user has written (or is writing) that code right now. D5, D9 and D10 are the algorithm/library side and are usually studied later. Prefer suggesting sub-topics the user can still see in their own editor.
+List **all** sub-topics of that domain (he wants to pre-study the whole domain, so show the road ahead), and mark the recommended next one with ▶:
 
-**Question 4 — 知识点选择** (single-select, only after Question 3):
+- `▶ D1.1 目录层级与相对路径约定 ①- 未预习`
+- `   D1.2 .pro 配置项全解 ①7 已预习`
+- `   D1.3 qrc 资源系统与图标 ①- 未预习`
 
-List all sub-topics under the selected domain with per-stage status:
-- `D2.1 ZZListener 抽象基类设计 ①- ②- ③- 未学习`
-- `D2.4 registerMessage 位与拆包 ①8 ②6 ③- 可进入 ③`
-- `D2.5 notify 查表广播 ①9 ②8 ③8 ✅ 掌握`
-
-Include option:
-- 🎯 Agent 推荐 — auto-pick the weakest / most advanced eligible sub-topic in this domain
+Recommended next = first sub-topic in implementation order without a ① score.
 
 ---
 
-## Phase 4: Generate Interview Question
+## Phase 4: 预习课 → 自测题
 
-Based on the selected **sub-topic** (not just domain) and the selected **stage**:
+Two deliverables, always in this order. **Never ask a question before delivering the lesson.**
 
-1. **Determine the stage.** If the user chose "Agent 按进度自动", derive it: no ① score → ①; has ① but no ② and the user's file exists → ②; has ①+② and both sides exist → ③; otherwise repeat the latest stage with a new angle.
+### 4.1 预习课（每个知识点必给）
+
+Deliver a self-contained mini-lesson (中文) on the sub-topic. The user is learning the teacher's course *before* writing his own code, so assume he has **not** read the source file. Read the actual reference source first — never write a lesson from memory.
+
+Required structure:
+
+```markdown
+## 📖 预习课 · [知识点 ID + 名称]
+
+**这个知识点解决什么问题**
+2-3 句话说清它在整个工程里的位置，以及不搞懂它会被卡在哪里。
+
+**源工程的做法**
+核心代码片段（只贴关键几行，不要整文件），每段都给 `file:line`，逐行解释关键处。
+
+**为什么这么做**
+设计动机。如果有更简单的写法，说明老师为什么没选它。
+
+**容易踩的坑**
+1-2 条真实存在的隐患或常见误解（可引用 `DEV_SPEC.md` 附录的隐患清单）。
+
+**一句话记忆**
+一句话收尾。
+```
+
+Lesson rules:
+
+- **Every symbol that "appears without being defined" must be traced to its origin**（宏是谁定义的、变量是谁提供的、文件是谁生成的、名字是谁取的）。This is the user's single biggest recurring blocker — the lesson is where it gets settled.
+- Cite `file:line` for every code fragment.
+- Keep it readable in 2-3 minutes. A lesson, not an essay.
+- End the lesson, then immediately output the self-test question — do not ask the user whether he wants the question.
+
+### 4.2 自测题（① 档，紧接预习课）
+
+One question, immediately after the lesson, to check whether it actually landed.
+
+1. **Stage** — default ① 预习. Use ②/③ only if the user explicitly requested that stage this session.
 2. **Read the actual source for that stage** — do not answer from memory:
    - ① → read the reference file in `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\`
-   - ② → read the user's own file in `src/ZhuZhaoGUI/` (and the reference only to know what to avoid asking)
+   - ② → read the user's own file in `src/ZhuZhaoGUI/`
    - ③ → read BOTH, and diff them mentally before writing the question
-3. **Dynamically generate** ONE main interview question (中文) grounded in real code
-4. **Internally prepare** up to 4 progressive follow-up questions (do NOT show these yet)
-5. **Avoid repeating** questions — check Detailed History for this sub-topic at the same stage and pick a different angle
+3. **Internally prepare** up to 4 progressive follow-up questions (do NOT show these yet)
+4. **Avoid repeating** questions — check Detailed History for this sub-topic at the same stage and pick a different angle
 
-### Question Design Principles
+Question design principles:
 
 - Questions MUST reference real code, file paths and behavior of THIS project, never generic Qt/C++ trivia
 - Questions should be scoped to the sub-topic, not the whole domain
+- Because the lesson already stated the answer, the self-test should ask for **understanding, not recall** — "为什么必须这样""换个写法会怎样""这个符号从哪来" rather than "老师怎么写的"
 
 ### Per-Stage Question Style
 
-| 阶段 | 出题对象 | 典型句式 |
-|------|---------|---------|
-| **① 预习** | 源工程 | "源工程的 `X` 是怎么做的？为什么用这种方式？" 答案必须能落到 `file:line` |
-| **② 自建** | 用户自己的代码 | "你写的 `X` 里，这段为什么这么写？如果换成源工程的做法会怎样？"；若用户尚未写该文件则先询问是否可以退到 ① |
-| **③ 对照** | 两边差异 | "你的 `X` 和源工程差在哪？这个差异是有意的吗？哪种更合适？" |
+| 阶段 | 触发方式 | 出题对象 | 典型句式 |
+|------|---------|---------|---------|
+| **① 预习** | **默认**，每讲完一课就出 | 源工程 | "为什么必须这样？换个写法会怎样？" 答案必须能落到 `file:line` |
+| **② 自建** | **仅用户主动要求** | 用户自己的代码 | "你写的 `X` 里，这段为什么这么写？" |
+| **③ 对照** | **仅用户主动要求** | 两边差异 | "你的 `X` 和源工程差在哪？哪种更合适？" |
 
 Difficulty progression for follow-ups (all stages):
 - Follow-up 1: "为什么这样设计？" (design rationale)
@@ -427,9 +461,10 @@ If the file doesn't exist, create it from the template in [references/LEARNING_P
    - 状态: all ✅ → ✅ 掌握; some studied → 🔶 学习中 or 🔴 薄弱 (based on the average); none → ⬜ 未学习
 4. **Update** the `Last updated` timestamp
 5. **Update** the session counter `#` (auto-increment, replacing the `-` placeholder row on first use)
-6. **Update** the header progress lines:
-   - `总进度: X/48 知识点已掌握`
+6. **Update** the header lines:
+   - `当前预习中的域: D? …` — the domain the user is working through now
    - `阶段进度: ①预习 X/48 · ②自建 X/48 · ③对照 X/48`
+   - `三阶段完成: X/48` — count of sub-topics that have a score in all three stages
 
 ---
 
@@ -439,10 +474,12 @@ After persisting, ask the user (中文):
 
 | Option | Action |
 |--------|--------|
-| 🔄 继续学习下一个知识点 | Loop back to Phase 3 |
-| 🎯 Agent 推荐下一个 | Auto-pick optimal next sub-topic **and stage**, go to Phase 4 |
+| 🔄 继续下一个知识点 | Stay in the same domain, first sub-topic without a ① score; go to Phase 4 |
+| 🎯 Agent 推荐下一个 | Auto-pick next sub-topic **within the current domain**（stage ①）; go to Phase 4 |
 | 📋 查看当前学习进度 | Display full progress table |
 | 🏁 结束本次学习 | Show session summary, stop |
+
+> Never add an option like "进入 ② 自建" — ②/③ are only entered when the user asks.
 
 ### Session Summary (on 🏁 end)
 
