@@ -267,6 +267,13 @@ Required structure:
 
 Lesson rules:
 
+- **Open every lesson with a 模块地图 (module map) — hard rule, added 2026-09-14.** Before any detail, give three lines:
+  1. **本课涉及哪几个文件**（全路径）
+  2. **每个文件里定义了哪几个东西**（类 / 函数 / 变量，一行一个，带 `file:line`）
+  3. **谁调用谁**（整条调用链，标明"谁启动、谁触发、谁被通知"）
+  Observed failure 2026-09-14 (D2.5): after four sub-topics of detail he said 「我连现在讲哪个模块，那几个函数都不知道！！notify 到底在哪里跑，它统治的是什么信息？」 He could not locate a function in the system at all. **He needs the map before the zoom.**
+- **Allocate detail by "is it the mainline?" — do not spread effort evenly.** Mainline items (the call chain, where data lives, who owns what, which thread it runs on) must be spelled out fully. Side items (a `&` operator, `0x` hex, a keyword) get **one line — unless he asks**. He called this out explicitly: 「讲语法的时候那个 `&` 的语法又把我当弱智讲那么些」 — over-explaining trivia while under-explaining the mainline is worse than doing neither.
+- **Never use an undefined pronoun.** "其余数据"、"自己想办法"、"这一份" are banned — name the thing, the actor, and the location every time. (He caught this: 「其他数据都得自己想办法去取这是啥意思？」)
 - **Every symbol that "appears without being defined" must be traced to its origin**（宏是谁定义的、变量是谁提供的、文件是谁生成的、名字是谁取的）。This is the user's single biggest recurring blocker — the lesson is where it gets settled.
 - Cite `file:line` for every code fragment.
 - Keep it readable in 2-3 minutes. A lesson, not an essay.
@@ -289,6 +296,7 @@ Question design principles:
 - Questions MUST reference real code, file paths and behavior of THIS project, never generic Qt/C++ trivia
 - Questions should be scoped to the sub-topic, not the whole domain
 - Because the lesson already stated the answer, the self-test should ask for **understanding, not recall** — "为什么必须这样""换个写法会怎样""这个符号从哪来" rather than "老师怎么写的"
+- **Inline the code in the question. (hard rule, added 2026-09-14)** If a question asks about a function, a loop, or a line range, **paste that code into the question itself, with `file:line`**. Never write "把 `ZZListener.cpp:49-61` 走一遍" and leave him to open the file — he studies from the chat, not from a jump-capable IDE, the reference project is Qt5 and he cannot build it locally. Observed failure mode: he answers 「我不知道 map 有哪些 key 啊，你问我代码相关要预习课或提问给出函数位置啊……跳转也做不到」 and the question becomes unanswerable. **The same rule applies to the 预习课 and 总结课 prose**: if you mention a function, paste the function, don't just cite its line numbers.
 
 ### Per-Stage Question Style
 
@@ -532,6 +540,7 @@ If the file doesn't exist, create it from the template in [references/LEARNING_P
    The 薄弱点 column must merge two sources: the answer gaps found in Phase 6, **and any point he could not follow in the Phase 7.2 答疑** (those are the spots worth re-teaching next time).
 2. **Update** the `Sub-topic Progress` row for the affected sub-topic — write the score into the **stage column that was just examined**:
    - Only ever raise a stage column (`max` of the old value and this session's score) — never lower it
+   - **Exception — user-requested correction.** If the user explicitly says a score is too high or misleading, honour it. It is his record and his calibration matters more than the bookkeeping rule. (Observed 2026-09-14, D2.4: 「把 D2.4 改成 4 分吧，不然会让我产生误解」 — he downgraded 6.0 → 4.0 because ① was unanswered and ②③ were loose.) When this happens, **write the reason into the 薄弱点 column of that Detailed History row** so the change is auditable, never silently overwrite, and recompute the domain mean afterwards.
    - Leave the other stage columns untouched
    - Recompute 状态 from the latest completed stage (③ → ② → ①, see Phase 2 rule)
 3. **Recalculate** the `Domain Summary` row for that domain:
