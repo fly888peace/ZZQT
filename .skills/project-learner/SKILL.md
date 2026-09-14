@@ -1,6 +1,6 @@
 ---
 name: project-learner
-description: "Interactive learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project. For each knowledge point it FIRST delivers a 预习课 (a grounded mini-lesson on how the reference implementation works, citing file:line), THEN adds one self-test question with up to 4 follow-up rounds, scoring and a learning guide. Reads DEV_SPEC.md plus BOTH the reference source (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/. Work is organised by 知识域: pre-study a whole domain before implementing it. Stage ① 预习 is the default; stages ② 自建 and ③ 对照 are ON DEMAND only, run them only when the user explicitly asks. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '预习课', '检验我', '抽查', '面试准备', 'learn project', 'study project', 'interview prep', 'knowledge check'."
+description: "Interactive learning coach for the ZhuZhaoGUI (烛照) photometric-stereo Qt project. For each knowledge point it FIRST delivers a 预习课 (a grounded mini-lesson on how the reference implementation works, citing file:line), THEN one self-test question with AT MOST 2 follow-up rounds, then a 评价报告, then a 总结课 (a clean consolidation lesson that teaches the topic properly instead of relitigating mistakes) and a learning guide. Reads DEV_SPEC.md plus BOTH the reference source (D:/QT6/000workspace/ZhuZhao-V1.2.0) and the user's own src/. Work is organised by 知识域: pre-study a whole domain before implementing it. Stage ① 预习 is the default; stages ② 自建 and ③ 对照 are ON DEMAND only, run them only when the user explicitly asks. 10 domains x 4-5 sub-topics = 48 knowledge points. Use when the user says '学习项目', '考我', '预习课', '检验我', '抽查', '面试准备', 'learn project', 'study project', 'interview prep', 'knowledge check'."
 ---
 
 # Project Learner — ZhuZhaoGUI (烛照)
@@ -40,7 +40,7 @@ The user replicates the project in three passes, so **the same sub-topic is stud
 Rules:
 
 - **Only stage ① runs by default.** Stages ② and ③ are **on demand** — the user is time-constrained and will explicitly ask when he wants them. **Never auto-advance to ② or ③, never offer them as an option, and never nag about them.**
-- Stage ① = **预习课 + 自测题**, always in that order. The lesson comes first and is mandatory (see Phase 4). The user is learning the teacher's course *before* writing his own code, so ① must be self-contained — assume he has not read the source file yet.
+- Stage ① = **预习课 → 自测题 → ≤2 轮追问 → 评价报告 → 总结课 → 总结课答疑（按需重写）**, always in that order. The 预习课 comes first and is mandatory (see Phase 4); the 总结课 and its checkpoint close the sub-topic (see Phase 7). The user is learning the teacher's course *before* writing his own code, so ① must be self-contained — assume he has not read the source file yet.
 - Stage **②** requires the user's own file to exist. Stage **③** requires both sides to exist. If he asks for one whose precondition is unmet, say so and offer the previous stage.
 - A sub-topic is only "truly done" when stage ③ is complete, but each stage is scored independently — never let a good ① score imply mastery.
 
@@ -56,11 +56,28 @@ The user pre-studies **an entire knowledge domain**, then implements that domain
 
 ```
 Discovery → Check History → User Intent → Select Domain → Select Sub-topic
-→ 【预习课】grounded lesson → 自测题 → Interactive Q&A (<=4 follow-ups) → Evaluate
-→ Learning Guide → Persist Progress → Continue or End
+→ 【预习课】grounded lesson → 自测题 → Interactive Q&A (≤2 follow-ups) → 评价报告
+→ 【总结课】consolidation lesson → 答疑 + 按需重写 → Learning Guide → Persist Progress → Continue or End
 ```
 
 ② 自建 and ③ 对照 are **on-demand branches** of the same pipeline — different source and question style, triggered only by an explicit user request.
+
+### Lesson Budget per Sub-topic (fixed shape)
+
+Every sub-topic, in every stage, follows exactly this shape — no more, no less:
+
+| # | 环节 | 内容 | 时长感 |
+|---|------|------|--------|
+| 1 | **预习课** | grounded lesson on the reference code, every fragment cited `file:line` | 2–3 min |
+| 2 | **自测题** | one question | — |
+| 3 | **追问** | **at most 2 rounds**, then stop. Never stretch to 3 or 4 | — |
+| 4 | **评价报告** | score table + gaps with `file:line` | — |
+| 5 | **总结课** | clean consolidation lesson (see Phase 7.1) | 2–3 min |
+| 6 | **总结课答疑 + 按需重写** | **ask what he wants to ask, answer, rewrite the affected part** (see Phase 7.2) | 由他定 |
+| 7 | **学习指南** | key files, docs, external concepts, one hands-on action | — |
+
+- **Two follow-up rounds is a hard ceiling, not a target.** If the user's first answer is already comprehensive, end after round 1 (or round 0). Never drag a session out to fill a quota.
+- **The 总结课 is mandatory** and is NOT a second evaluation. It teaches the topic properly; the mistakes are already handled in the 评价报告 and get only a light mention.
 
 ---
 
@@ -264,7 +281,7 @@ One question, immediately after the lesson, to check whether it actually landed.
    - ① → read the reference file in `D:\QT6\000workspace\ZhuZhao-V1.2.0\src\`
    - ② → read the user's own file in `src/ZhuZhaoGUI/`
    - ③ → read BOTH, and diff them mentally before writing the question
-3. **Internally prepare** up to 4 progressive follow-up questions (do NOT show these yet)
+3. **Internally prepare** at most 2 progressive follow-up questions (do NOT show these yet); end early whenever the answer is already comprehensive
 4. **Avoid repeating** questions — check Detailed History for this sub-topic at the same stage and pick a different angle
 
 Question design principles:
@@ -281,13 +298,11 @@ Question design principles:
 | **② 自建** | **仅用户主动要求** | 用户自己的代码 | "你写的 `X` 里，这段为什么这么写？" |
 | **③ 对照** | **仅用户主动要求** | 两边差异 | "你的 `X` 和源工程差在哪？哪种更合适？" |
 
-Difficulty progression for follow-ups (all stages):
-- Follow-up 1: "为什么这样设计？" (design rationale)
-- Follow-up 2: "和替代方案对比有什么优劣？" (trade-offs)
-- Follow-up 3: "边界条件/异常情况怎么处理？" (edge cases)
-- Follow-up 4: "如果让你重新设计，会怎么做？" (redesign thinking)
+Difficulty progression for follow-ups (all stages) — **only two rungs exist**:
+- Follow-up 1: "为什么这样设计？" (design rationale) or "这个符号 / 文件是谁给的，从哪来？" (origin)
+- Follow-up 2: "换个写法会怎样？" / "边界条件与异常情况怎么处理？" (trade-offs, edge cases)
 
-Adjust follow-ups dynamically based on what the user actually answers.
+Pick the rung that targets the **actual gap** in what the user just said. **Never add a third round** — if round 2 still exposes a gap, log it under 需要加强 in the 评价报告 and close it in the 总结课 instead.
 
 ### Question Angle Variety
 
@@ -330,13 +345,16 @@ Grounded answers must cite `file:line` in the reference project.
 
 ---
 
-## Phase 5: Interactive Q&A (<=4 Follow-up Rounds)
+## Phase 5: Interactive Q&A (≤2 Follow-up Rounds)
 
 ```
 Round 0: Main question → User answers
-Round 1-4: Brief feedback on previous answer + follow-up question → User answers
-Early exit: User says "结束"/"pass"/"跳过" OR answer is sufficiently comprehensive
+Round 1-2: Brief feedback on previous answer + follow-up question → User answers
+HARD STOP after Round 2.
+Early exit: user says "结束"/"pass"/"跳过", or the answer is already comprehensive (stop even at Round 0/1)
 ```
+
+When the final round closes, **do not ask whether to keep drilling** — go straight into the 评价报告 (Phase 6), then the 总结课 (Phase 7). The fixed budget is a feature: the user is time-constrained and values a predictable shape.
 
 ### Per-Round Behavior
 
@@ -368,7 +386,7 @@ After Q&A ends, output a structured evaluation report (中文):
 
 **知识域**: [Domain] > **知识点**: [Sub-topic ID & Name]
 **阶段**: [① 预习 / ② 自建 / ③ 对照]
-**追问轮数**: N/4
+**追问轮数**: N/2（上限 2）
 
 ### ✅ 回答亮点
 - [Strength 1 — specific to what they said]
@@ -408,9 +426,68 @@ Scoring rules:
 
 ---
 
-## Phase 7: Learning Guide
+## Phase 7: 总结课（每个知识点必给，紧跟评价报告）
 
-Immediately after evaluation, provide targeted study resources (中文):
+Two steps, **both mandatory**: **7.1 出课**，然后 **7.2 答疑与按需重写**。把课发出去**不等于**这个环节结束。
+
+### 7.1 出课
+
+The 总结课 is the **closing lesson** of a sub-topic — a clean, well-taught consolidation. It exists because the user wants to *learn the thing*, not merely be graded on it.
+
+Rules:
+
+- **Do NOT relitigate mistakes.** No bullet list of 你答错的点, no repeated 纠错. The 评价报告 already did that job.
+- The user's misconception gets **at most one or two light sentences**, woven in as 「这里最容易混的是……」 rather than 「你答错了」. **Never quote his wrong answer back at him.**
+- **Spend the space teaching.** This is the place to add what the 预习课 deliberately left out: deeper rationale, how neighbouring pieces connect, where it actually bites in real projects, what to watch for when he writes his own version in stage ②.
+- Still cite `file:line` — precision is what he values.
+- 2–3 minutes to read. If the topic deserves more, add a second diagram/paragraph rather than a wall of text.
+
+Structure:
+
+```markdown
+## 🎓 总结课 · [知识点 ID + 名称]
+
+**把这一课串成一条线**
+3-5 句把因果链讲完 —— 它为什么存在、源工程怎么解的、代价是什么。
+
+**预习课没展开的部分**
+1-2 个真正有增量的点（更深的原理 / 工程实践 / 常见反例）。
+可以轻轻带一句「这里最容易混的是……」，但不指向任何一次具体答错。
+
+**和你接下来要做的事的关系**
+指回 `DEV_SPEC.md` §6 的对应复刻步骤：他写自己版本时，这个知识点会在哪一步、以什么形式出现。
+
+**一句话记忆**
+收尾，换一个比预习课更好的说法。
+```
+
+### 补充视觉（可选）
+
+If the topic has a natural visual (a data flow, a decision, a comparison), a `show_widget` diagram here is worth more than extra prose. Do **not** reuse the 预习课 diagram — this one should show the *whole* picture the sub-topic sits inside.
+
+### 7.2 答疑与按需重写（**必做，不可写成「有问题再找我」**）
+
+The 总结课 is written **by the coach**, so it can absolutely contain something the user cannot follow. That is a defect of the lesson, not of the learner. So **immediately after posting the lesson, ask** — 用这个口气，中文：
+
+> 「这一节总结课有没有读不懂、或者想追问的地方？有的话你说一句，我就着你的问题把总结课补写/重写一版；没有的话我们就进学习指南。」
+
+Rules:
+
+- **每次都问**，哪怕这一课看起来讲得很干净。**不许为了省一轮而跳过这个检查点。**
+- 当他提出问题：
+  1. **先答问题，答透。** 按他的偏好来：生活化比喻 + 最短可运行例子 + `file:line` 出处 + 一句话记忆。这里是教学场景，**不打分、不反问**。
+  2. **再修课。** 按问题的牵涉范围选做法：
+     - **局部问题**（一个名词、一两行代码、某个符号的出处）→ **就地补充**：只重发受影响的那一段，并明确写出「这一段替换原来的第 X 段」。
+     - **牵动主线的问题**（说明这一课的因果链压根没讲通）→ **整节重写**，并在开头一行说清这一版改了什么。
+  3. **问完再问一次**还有没有。这个循环由他结束，不由你结束。
+- **收口条件**：他说「没了 / 可以了 / 继续」才算收口，然后进 Phase 8。收口之后**不要再追问**。
+- **必须记录**：他读不懂的点既是这一课的缺陷，也是**真实的薄弱点** —— 在 Phase 9 的 Detailed History 薄弱点列里写下来，别丢。
+
+---
+
+## Phase 8: Learning Guide
+
+Immediately after the 总结课 has been closed out (Phase 7.2), provide targeted study resources (中文):
 
 ```markdown
 ## 📚 学习指南
@@ -436,12 +513,13 @@ Immediately after evaluation, provide targeted study resources (中文):
 Guidelines:
 - Code references MUST use actual paths, with line numbers (源工程路径要写全，便于直接跳转)
 - Only recommend reading 3-5 key files, not the whole codebase
-- Include at least one hands-on action (build / run / modify)
+- Include at least one hands-on action (build / run / modify); when it is a comparison, **write out the actual commands/files for both sides**
 - External references only for concepts not explained in the codebase (SVD, DFT, 观察者模式)
+- **Never write, offer, or plan Obsidian notes.** The user maintains his own notes in his own vault. This skill's output ends at the chat reply plus the progress file — do not add a note-writing step.
 
 ---
 
-## Phase 8: Persist Progress
+## Phase 9: Persist Progress
 
 Update `.skills/project-learner/references/LEARNING_PROGRESS.md`.
 
@@ -451,6 +529,7 @@ If the file doesn't exist, create it from the template in [references/LEARNING_P
 
 1. **Append** one row to the `Detailed History` table — columns are
    `| # | Date | 阶段 | 知识点 ID | 知识点 | 问题 | 评分 | 追问轮数 | 薄弱点 |`
+   The 薄弱点 column must merge two sources: the answer gaps found in Phase 6, **and any point he could not follow in the Phase 7.2 答疑** (those are the spots worth re-teaching next time).
 2. **Update** the `Sub-topic Progress` row for the affected sub-topic — write the score into the **stage column that was just examined**:
    - Only ever raise a stage column (`max` of the old value and this session's score) — never lower it
    - Leave the other stage columns untouched
@@ -468,7 +547,7 @@ If the file doesn't exist, create it from the template in [references/LEARNING_P
 
 ---
 
-## Phase 9: Continue or End
+## Phase 10: Continue or End
 
 After persisting, ask the user (中文):
 
