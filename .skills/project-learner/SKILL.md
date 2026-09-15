@@ -72,7 +72,7 @@ Every sub-topic, in every stage, follows exactly this shape — no more, no less
 | 2 | **自测题** | one question | — |
 | 3 | **追问** | **at most 2 rounds**, then stop. Never stretch to 3 or 4 | — |
 | 4 | **评价报告** | score table + gaps with `file:line` | — |
-| 5 | **总结课** | clean consolidation lesson (see Phase 7.1) | 2–3 min |
+| 5 | **总结课** | clean consolidation lesson that folds in the 主问题 + 追问链 (see Phase 7.1) | 3–5 min |
 | 6 | **总结课答疑 + 按需重写** | **ask what he wants to ask, answer, rewrite the affected part** (see Phase 7.2) | 由他定 |
 | 7 | **学习指南** | key files, docs, external concepts, one hands-on action | — |
 
@@ -275,6 +275,8 @@ Lesson rules:
 - **Allocate detail by "is it the mainline?" — do not spread effort evenly.** Mainline items (the call chain, where data lives, who owns what, which thread it runs on) must be spelled out fully. Side items (a `&` operator, `0x` hex, a keyword) get **one line — unless he asks**. He called this out explicitly: 「讲语法的时候那个 `&` 的语法又把我当弱智讲那么些」 — over-explaining trivia while under-explaining the mainline is worse than doing neither.
 - **Never use an undefined pronoun.** "其余数据"、"自己想办法"、"这一份" are banned — name the thing, the actor, and the location every time. (He caught this: 「其他数据都得自己想办法去取这是啥意思？」)
 - **Every symbol that "appears without being defined" must be traced to its origin**（宏是谁定义的、变量是谁提供的、文件是谁生成的、名字是谁取的）。This is the user's single biggest recurring blocker — the lesson is where it gets settled.
+- **Every cross-domain concept must arrive with a definition AND a concrete instance — never just a name. (hard rule, added 2026-09-15 after a failed D3.4.)** This matters most for **operating-system and build-tool concepts**, where he has no prior footing: 「当前工作目录」·「相对路径的基准」·「qmake 阶段」·「进程」·「工作目录由启动者设定」. He cannot answer a question about a term the lesson never defined. His words: 「你预习课有讲吗，我真不知道啊，能不能预习课先讲再问我，我学习效率很低啊，我都听不懂」.
+- **Whenever a path is discussed, print the concrete absolute path — never stop at "relative to some directory". (hard rule, added 2026-09-15.)** He called this out directly: 「为什么你都不点名」. The version that finally landed: name the exe's real path, name the working directory each launcher sets, and name the resulting **absolute log file path** — for every launch method, in one table. Use his machine's real paths (`D:\SmartGit\workspace_git\zhuzhaoGUI\src\bin\...`), not placeholders.
 - Cite `file:line` for every code fragment.
 - Keep it readable in 2-3 minutes. A lesson, not an essay.
 - End the lesson, then immediately output the self-test question — do not ask the user whether he wants the question.
@@ -293,6 +295,9 @@ One question, immediately after the lesson, to check whether it actually landed.
 
 Question design principles:
 
+- **He may skip the quiz entirely — honour it without argument. (2026-09-15.)** When he says 「你直接给总结课吧」 / 「预习课总结课都重讲」, deliver **one consolidated lesson** covering the 预习 + 总结 content in a single pass: no question, no follow-up rounds, no score, no 评价报告. Record it in Detailed History with 评分 `—` and the note 「用户要求跳过自测，直接讲课」.
+- **Show a worked sample before asking — his explicit request. (2026-09-15.)** Give one same-shaped question with a **full answer plus the reasoning that produced it**, then ask the real one. His words: 「就像数学课上老师先讲例题，再留一道让你自己做」.
+- **Never test information the 预习课 did not state in concrete form. (hard rule, added 2026-09-15.)** If the quiz asks "which path exactly", the lesson must have printed that exact path. Testing an abstraction the lesson only gestured at is a defect of the question, not of the learner. (Observed failure, D3.4: asked for two concrete working directories when the lesson had only said 「三种启动三个地方」.)
 - Questions MUST reference real code, file paths and behavior of THIS project, never generic Qt/C++ trivia
 - Questions should be scoped to the sub-topic, not the whole domain
 - Because the lesson already stated the answer, the self-test should ask for **understanding, not recall** — "为什么必须这样""换个写法会怎样""这个符号从哪来" rather than "老师怎么写的"
@@ -447,8 +452,11 @@ Rules:
 - **Do NOT relitigate mistakes.** No bullet list of 你答错的点, no repeated 纠错. The 评价报告 already did that job.
 - The user's misconception gets **at most one or two light sentences**, woven in as 「这里最容易混的是……」 rather than 「你答错了」. **Never quote his wrong answer back at him.**
 - **Spend the space teaching.** This is the place to add what the 预习课 deliberately left out: deeper rationale, how neighbouring pieces connect, where it actually bites in real projects, what to watch for when he writes his own version in stage ②.
+- **Fold the main question + follow-up chain into the lesson body — default behaviour, do NOT wait for him to ask (added 2026-09-15).** The 自测题's main question and the two follow-up rounds already *are* the causal chain of the sub-topic. Leaving them stranded above the 总结课 as a separate Q&A transcript makes the lesson read thin and disjointed. Structure the body as 「这门课的问题从哪来 → 病灶在哪 → 把链条走完 → 修法 → 反例推演」and let the questions supply the骨架. His words: 「把D3.1的主问题和追问和总结课融一下吧，你这样看总结课有点短，虽然也不算坏事吧」.
+  - **Boundary that still holds**: fold in the *questions and the reasoning chain*, **never his wrong answers**. 「不复述他答错了什么」is unchanged — mistakes stay in the 评价报告.
+  - A worked shape that landed well (D3.1, 2026-09-15): ① 问题从哪来 ② 病灶三行代码逐层拆 ③ 完整时序走一遍 + 反例推演（"删掉这一步会怎样"）④ 修法与内存落点 ⑤ 嵌入更大的图景（与相邻知识点的对照表）⑥ 历史/演进（一句带过）⑦ 与 `DEV_SPEC.md` 复刻步骤的对应 ⑧ 一句话记忆.
 - Still cite `file:line` — precision is what he values.
-- 2–3 minutes to read. If the topic deserves more, add a second diagram/paragraph rather than a wall of text.
+- **3–5 minutes to read; 宁长勿干.** He explicitly said a short 总结课 reads as thin. Add depth (another mechanism layer, a counter-example walk-through, a diagram), never filler.
 
 Structure:
 
@@ -484,9 +492,12 @@ Rules:
 - **每次都问**，哪怕这一课看起来讲得很干净。**不许为了省一轮而跳过这个检查点。**
 - 当他提出问题：
   1. **先答问题，答透。** 按他的偏好来：生活化比喻 + 最短可运行例子 + `file:line` 出处 + 一句话记忆。这里是教学场景，**不打分、不反问**。
-  2. **再修课。** 按问题的牵涉范围选做法：
-     - **局部问题**（一个名词、一两行代码、某个符号的出处）→ **就地补充**：只重发受影响的那一段，并明确写出「这一段替换原来的第 X 段」。
-     - **牵动主线的问题**（说明这一课的因果链压根没讲通）→ **整节重写**，并在开头一行说清这一版改了什么。
+  2. **再修课 —— 默认交付「完整重写版全文」。** He has now asked for this three separate times (2026-09-15): 「把主问题和追问和总结课融一下」·「你把回答写进总结课啊，不要单独列出来」·「不要直接加一段，要融进去，不然太死板了」. So:
+     - **Do NOT** open a 「## 📝 按你的问题修课（就地补充）」section, and **do NOT** write 「这一段替换原来的第 X 段」. Patch-style delivery reads as lazy to him.
+     - **Instead**: place the answer *inside the existing section where it belongs*, and rewrite that section so the new material is load-bearing instead of appended. (Worked example 2026-09-15, D3.3: 「qFatal 为什么天生没有返回值」went into the QFATAL section, 「宏参数是"抄字"不是"传值"」went into 第一次变形/预处理器, 「__LINE__ 是谁的行号」went into the same 第一次变形 — no new top-level sections.)
+     - **Deliver the entire lesson, paste-ready.** If it contains a diagram, output it as a ` ```svg ` fenced block rather than a rendered widget — his Obsidian vault has an `inline-svg-renderer` plugin and he copies lessons wholesale.
+     - A one-line 「这一版改了什么」at the top is welcome; a change-log at the bottom is optional.
+     - **Only exception**: one isolated noun/symbol that plainly cannot affect the lesson's structure — answering in chat is then enough.
   3. **问完再问一次**还有没有。这个循环由他结束，不由你结束。
 - **收口条件**：他说「没了 / 可以了 / 继续」才算收口，然后进 Phase 8。收口之后**不要再追问**。
 - **必须记录**：他读不懂的点既是这一课的缺陷，也是**真实的薄弱点** —— 在 Phase 9 的 Detailed History 薄弱点列里写下来，别丢。
