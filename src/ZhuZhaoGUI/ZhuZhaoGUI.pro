@@ -31,10 +31,16 @@ DEFINES += QT_DEPRECATED_WARNINGS
 # ----------------------------------------------------------
 SOURCES += \
     main.cpp \
-    MainWindow.cpp
+    MainWindow.cpp \
+    ZZListener.cpp \
+    ZZLogWidget/ZZLogMessage.cpp \
+    ZZLogWidget/ZZLogWidget.cpp
 
 HEADERS += \
-    MainWindow.h
+    MainWindow.h \
+    ZZListener.h \
+    ZZLogWidget/ZZLogMessage.h \
+    ZZLogWidget/ZZLogWidget.h
 
 # ----------------------------------------------------------
 # 资源文件（按钮图标 + 中文翻译）

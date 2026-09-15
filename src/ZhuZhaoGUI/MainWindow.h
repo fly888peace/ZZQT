@@ -3,12 +3,15 @@
 
 #include <QMainWindow>
 
+class ZZLogWidget;   // 前置声明：头文件里只是个指针，不需要知道它的内部细节
+
 // ==========================================================
-//  【骨架占位文件】
+//  MainWindow —— 主窗口
 //
-//  这个文件现在只为了让工程能编出一个空窗口，方便你随时验证环境。
-//  按课程讲到 MainWindow 时，请把本文件内容整个替换成自己的实现，
-//  课程版会变成：
+//  当前是【临时挂载状态】：只把 ZZLogWidget 摆进来先跑通，
+//  用来验证 D3 日志域写出来的东西到底能不能用。
+//
+//  D4（主窗口布局）那一节会把这里整套改成课程版：
 //      - 继承 ZZListener（监听者模式）
 //      - 持有 ZZConfigWidget / ZZLogWidget / CustomImageView
 //        / HThumbnailList / VThumbnailList / ZZProcessThread 六个成员
@@ -25,6 +28,9 @@ class MainWindow : public QMainWindow
 public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
+
+private:
+    ZZLogWidget* m_pLogWidget;
 };
 
 #endif // MAINWINDOW_H
