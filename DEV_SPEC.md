@@ -344,7 +344,7 @@ QListWidget::currentRowChanged → (H|V)ThumbnailList::OnCurrentRowChanged
 | 阶段 | 目的 | 步骤数 | 状态 |
 |------|------|--------|------|
 | **A** 工程骨架与构建基座 | 先能编译、能跑出空窗口 | 4 | ✅ 已完成 |
-| **B** 前端地基：观察者 + 日志 | 建立全局通信与日志基础设施 | 5 | ⬜ 待开始 |
+| **B** 前端地基：观察者 + 日志 | 建立全局通信与日志基础设施 | 5 | ✅ 已完成 |
 | **C** 主窗口与视觉窗口 | 把界面骨架和图像显示做出来 | 8 | ⬜ 待开始 |
 | **D** 参数配置与多线程 | 打通"点按钮 → 跑算法 → 出结果" | 4 | ⬜ 待开始 |
 | **E** 光度立体算法动态库 | 实现算法并让前端链接 | 6 | ⬜ 待开始 |
@@ -363,13 +363,13 @@ QListWidget::currentRowChanged → (H|V)ThumbnailList::OnCurrentRowChanged
 
 > 验收标准：Qt Creator 配好 MSVC Kit 后 `Ctrl+B` 成功，运行出现空白窗口。
 
-#### 阶段 B：前端地基：观察者 + 日志
+#### 阶段 B：前端地基：观察者 + 日志 ✅
 
-- [ ] **B1** `ZZListener.h` —— 定义 `MESSAGE` 枚举与 `ZZListener` 抽象基类（纯虚 `RespondMessage`）
-- [ ] **B2** `ZZListener.cpp` —— `ListenerManger` 单例、`registerMessage()` 位拆包注册、`notify()` 广播
-- [ ] **B3** `ZZLogMessage.h` —— 日志宏（`QDEBUG` 等）与单例接口声明
-- [ ] **B4** `ZZLogMessage.cpp` —— 消息处理器重定向、格式化、落盘、超 1 MB 轮转
-- [ ] **B5** `ZZLogWidget` —— `QTextBrowser` 面板 + Clear / Helper 按钮，接 `sigDebugHtmlData`
+- [x] **B1** `ZZListener.h` —— 定义 `MESSAGE` 枚举与 `ZZListener` 抽象基类（纯虚 `RespondMessage`）
+- [x] **B2** `ZZListener.cpp` —— `ListenerManger` 单例、`registerMessage()` 位拆包注册、`notify()` 广播
+- [x] **B3** `ZZLogMessage.h` —— 日志宏（`QDEBUG` 等）与单例接口声明
+- [x] **B4** `ZZLogMessage.cpp` —— 消息处理器重定向、格式化、落盘、超 1 MB 轮转
+- [x] **B5** `ZZLogWidget` —— `QTextBrowser` 面板 + Clear / Helper 按钮，接 `sigDebugHtmlData`
 
 > 验收标准：`main.cpp` 里加一行 `QDEBUG("启动日志系统")`，能在 `log/` 下看到日志文件。
 
