@@ -1,19 +1,18 @@
 #include "ZZLogWidget.h"
-#include "ZZLogMessage.h"   // QDEBUG 宏 + ZZLogMessage::Instance()
+#include "ZZLogMessage.h"
 
 #include <QDesktopServices>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QPushButton>
 #include <QScrollBar>
-#include <QSizePolicy>
 #include <QTextBrowser>
+#include <QTextDocument>
 #include <QUrl>
 #include <QVBoxLayout>
 
-// 界面上最多保留多少条日志 —— 超了以后 Qt 会自动把最前面（最老）的那些 block 丢掉。
-// 源工程这块只增不减：连续刷日志能把内存一路吃上去，唯一的解法是手动点那个"清空"按钮。
-// 这里是 QTextEdit 自带的功能（maximumBlockCount），一行设置搞定，不用自己数行数。
+// 界面上最多保留多少条日志，超了 Qt 自动丢掉最老的那些 block。
+// 修：源工程这块只增不减，连续刷日志能把内存一路吃上去，只能靠手动点「清空」。
 constexpr int kMaxDisplayLines = 2000;
 
 ZZLogWidget::ZZLogWidget(QWidget *parent)
@@ -24,16 +23,15 @@ ZZLogWidget::ZZLogWidget(QWidget *parent)
 {
     this->setMinimumSize(300, 200);
 
-    //  源工程（ZZLogWidget.cpp:14-17）写的是
-    //      if (InitWidget() == false)  throw std::bad_alloc();
-    //  而 InitWidget() 最后一行就是无条件的 return true —— 那个 false 分支永远进不去，
-    //  throw 是一段死代码。这里直接调用，不再摆一个假分支。
+    // 源工程（ZZLogWidget.cpp:14-17）写的是 if (InitWidget() == false) throw ...，
+    // 而 InitWidget() 最后一行是无条件 return true —— 那个 false 分支永远进不去，
+    // throw 是死代码。这里直接调用，不再摆一个假分支。
     InitWidget();
 }
 
 bool ZZLogWidget::InitWidget()
 {
-    // ============ ① 创建控件 ============
+    // ---------- ① 创建控件 ----------
     m_pClearBtn = new QPushButton(this);
     m_pClearBtn->setText(tr("ClearLog"));
     m_pClearBtn->setFixedSize(120, 28);
@@ -50,35 +48,35 @@ bool ZZLogWidget::InitWidget()
     m_pHelperBtn->setStyleSheet("QPushButton{text-align:left;padding-left:12px;}");
 
     m_pLogTextBrowser = new QTextBrowser(this);
-    // 超过 kMaxDisplayLines 行，Qt 会自动把最老的那几个 block 丢掉。
-    // 注意 maximumBlockCount 是【QTextDocument】的属性，QTextBrowser 自己没有这个接口，
-    // 一路要走到它内部的那个 document 上。
+    // maximumBlockCount 是 QTextDocument 的属性，QTextBrowser 自己没有这个接口，
+    // 一路要走到它内部的那个 document 上
     m_pLogTextBrowser->document()->setMaximumBlockCount(kMaxDisplayLines);
 
-    // ============ ② 建立信号槽 ============
+    // ---------- ② 建立信号槽 ----------
     connect(m_pClearBtn, &QPushButton::clicked, this, &ZZLogWidget::OnClearBtnClicked);
     connect(m_pHelperBtn, &QPushButton::clicked, this, &ZZLogWidget::OnHelperBtnClicked);
 
-    // 订阅日志：把 ZZLogMessage 这条信号接到【本对象的槽】上，再自己决定怎么显示。
-    // 源工程是一步连到 QTextBrowser::append 上的（ZZLogWidget.cpp:44），
+    // 订阅日志。
+    // 源工程是一步直连到 QTextBrowser::append 上的（ZZLogWidget.cpp:44），
     // 那样也跑得通，但接过来以后就没机会做「滚动到底」这类收尾动作了。
     connect(ZZLogMessage::Instance(), &ZZLogMessage::sigDebugHtmlData,
             this, &ZZLogWidget::OnLogMessageAppended);
 
-    // ============ ③ 布局 ============
-    // 上半：日志文本框（占满剩余空间）
-    // 下半：两个按钮排成一行，装在一个固定高度 32 的小 QWidget 里
-    QHBoxLayout* pBtnLayout = new QHBoxLayout();          // 注意：不指定 parent，下面 pBtnWidget 装的是它
+    // ---------- ③ 布局 ----------
+    // 上半：日志文本框（占满剩余空间）；下半：两个按钮装在固定高 32 的小 QWidget 里。
+    // 布局都不传 parent，最后统一 setLayout 到宿主控件上。
+    QHBoxLayout* pBtnLayout = new QHBoxLayout();
     pBtnLayout->setContentsMargins(0, 0, 0, 0);
     pBtnLayout->setSpacing(0);
     pBtnLayout->addWidget(m_pHelperBtn);
     pBtnLayout->addWidget(m_pClearBtn);
-
     QWidget* pBtnWidget = new QWidget(this);
     pBtnWidget->setLayout(pBtnLayout);
     pBtnWidget->setFixedHeight(32);
 
-    QVBoxLayout* pMainLayout = new QVBoxLayout(this);
+    // 修：源工程写的是 new QVBoxLayout(this)，等于先把布局装到本控件上了，
+    //     下面这行 setLayout 又来一次，Qt 会报重复布局的警告。
+    QVBoxLayout* pMainLayout = new QVBoxLayout();
     pMainLayout->setContentsMargins(0, 0, 0, 0);
     pMainLayout->setSpacing(0);
     pMainLayout->addWidget(m_pLogTextBrowser);
@@ -101,17 +99,17 @@ void ZZLogWidget::OnHelperBtnClicked()
 
 void ZZLogWidget::OnLogMessageAppended(const QString& html)
 {
-    // 记住 D3.5 的结论：槽函数永远在【接收者所属线程】里执行。
-    // this（ZZLogWidget）是 main 线程里创建的，ZZLogMessage 的 Instance() 也是主线程里 new 的，
-    // 两边同一个线程 → 直连（Direct Connection）→ 这句话就跑在打日志的那一行上，
-    // 中间不经过事件队列。所以这里的 update 界面是安全的。
+    // 槽函数永远在【接收者所属的那条线程】执行，本控件的归属线程是主线程：
+    //   主线程打日志   → AutoConnection 判为同线程   → 直连，当场同步执行
+    //   算法线程打日志 → 跨线程 → 自动转 Queued，排队到主线程执行
+    // 两种情况下在这里改控件都安全。
     m_pLogTextBrowser->append(html);
     MoveScrollBarToBottom();
 }
 
 void ZZLogWidget::MoveScrollBarToBottom()
 {
-    // 新日志追加在最下面，把滚动条拉到底让用户直接看到最新一条
+    // 新日志追加在最下面，把滚动条拉到底，让用户直接看到最新一条
     QScrollBar* pScrollBar = m_pLogTextBrowser->verticalScrollBar();
     if (pScrollBar != nullptr)
     {
