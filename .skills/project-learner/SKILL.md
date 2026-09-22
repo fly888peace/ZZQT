@@ -271,10 +271,32 @@ Lesson rules:
   1. **本课涉及哪几个文件**（全路径）
   2. **每个文件里定义了哪几个东西**（类 / 函数 / 变量，一行一个，带 `file:line`）
   3. **谁调用谁**（整条调用链，标明"谁启动、谁触发、谁被通知"）
+  4. **面试里怎么用**（hard rule, added 2026-09-21）：点明这个域对应 `interview.md` 的哪一条口播。**若没有独立对应，就直接说清它是"场地"** —— 例如 D4 主窗口与布局不构成面试亮点，但 `interview.md` 第 3/4/5 条全跑在 `MainWindow` 上，面试官问「你这界面怎么搭的」答不上会扣分、答好了也不加分。**让他知道这一课在面试里值多少** —— 他抱怨过「不敲一遍也不知道干了啥」，根因之一就是学完不知道学了有什么用。
   Observed failure 2026-09-14 (D2.5): after four sub-topics of detail he said 「我连现在讲哪个模块，那几个函数都不知道！！notify 到底在哪里跑，它统治的是什么信息？」 He could not locate a function in the system at all. **He needs the map before the zoom.**
 - **Allocate detail by "is it the mainline?" — do not spread effort evenly.** Mainline items (the call chain, where data lives, who owns what, which thread it runs on) must be spelled out fully. Side items (a `&` operator, `0x` hex, a keyword) get **one line — unless he asks**. He called this out explicitly: 「讲语法的时候那个 `&` 的语法又把我当弱智讲那么些」 — over-explaining trivia while under-explaining the mainline is worse than doing neither.
 - **Never use an undefined pronoun.** "其余数据"、"自己想办法"、"这一份" are banned — name the thing, the actor, and the location every time. (He caught this: 「其他数据都得自己想办法去取这是啥意思？」)
 - **Every symbol that "appears without being defined" must be traced to its origin**（宏是谁定义的、变量是谁提供的、文件是谁生成的、名字是谁取的）。This is the user's single biggest recurring blocker — the lesson is where it gets settled.
+- **⚠️ 「谁给的」必须拆成「机制」和「内容」两层 —— 2026-09-22 被他当场纠正。** 我在 D4.5 的表里把 QSS 那栏的"谁给的"写成「**你自己写**」，他反问「`include\QtWidgets` 这函数不也是 QT 自带的吗」（**他对了**，而且是自己去翻 Qt 的 include 目录找的证据）。正确分法：
+
+  | 层 | `QStyle` | `QStyleSheet`（QSS） |
+  |---|---|---|
+  | 类 / 函数（**机制**） | **Qt** — `qstyle.h:29` | **Qt** — `qwidget.h:371` |
+  | 喂进去的**内容** | Qt 内置主题名 `"fusion"`，或自定义 `QStyle` 子类 | **人写的规则文本** |
+  | 解析 / 绘制 | Qt | Qt（内部 `QStyleSheetStyle`，private 头） |
+
+  → 以后凡是回答"**这个是谁给的**"，**先说清是机制还是内容**，别把两层混在同一栏里。他问过太多次"这个符号是谁给的"，这条会反复用到。
+- **⚠️ 「子类」被他当成通用词 —— 2026-09-22 连错两次，必须当术语课处理。**
+  - D4.3：他把 `pViewLayout` 说成 `pRightLayout` 的「**子类**」—— 应是「**子布局**」
+  - D4.5：他又把 QSS 向下传播的对象说成「**子类**」—— 应是「**子控件 / 后代控件**」
+  → 这不是粗心，是**他把"子类"当成了"下面所有东西"的通用词**。三个"子"必须分清，且要靠**建立方式**记：
+
+  | 词 | 关系 | 靠什么建立 | 本工程例子 |
+  |---|---|---|---|
+  | **子类** | **继承** | `class A : public B` | `QHBoxLayout` 是 `QBoxLayout` 的子类 |
+  | **子控件** | **父子** | `new X(parent)` / `setParent` | 两个按钮是 `pBtnWidget` 的子控件 |
+  | **子布局** | **嵌套** | `addLayout(...)` | `pViewLayout` 是 `pRightLayout` 的子布局 |
+
+  → 凡是课里出现"X 的 Y 会被影响 / Y 属于 X"这类表述，**当场点名是哪种关系**。复讲时要联系上一次一起讲，别只纠当次。
 - **Every cross-domain concept must arrive with a definition AND a concrete instance — never just a name. (hard rule, added 2026-09-15 after a failed D3.4.)** This matters most for **operating-system and build-tool concepts**, where he has no prior footing: 「当前工作目录」·「相对路径的基准」·「qmake 阶段」·「进程」·「工作目录由启动者设定」. He cannot answer a question about a term the lesson never defined. His words: 「你预习课有讲吗，我真不知道啊，能不能预习课先讲再问我，我学习效率很低啊，我都听不懂」.
 - **Whenever a path is discussed, print the concrete absolute path — never stop at "relative to some directory". (hard rule, added 2026-09-15.)** He called this out directly: 「为什么你都不点名」. The version that finally landed: name the exe's real path, name the working directory each launcher sets, and name the resulting **absolute log file path** — for every launch method, in one table. Use his machine's real paths (`D:\SmartGit\workspace_git\zhuzhaoGUI\src\bin\...`), not placeholders.
 - Cite `file:line` for every code fragment.
@@ -302,6 +324,48 @@ Question design principles:
 - Questions should be scoped to the sub-topic, not the whole domain
 - Because the lesson already stated the answer, the self-test should ask for **understanding, not recall** — "为什么必须这样""换个写法会怎样""这个符号从哪来" rather than "老师怎么写的"
 - **Inline the code in the question. (hard rule, added 2026-09-14)** If a question asks about a function, a loop, or a line range, **paste that code into the question itself, with `file:line`**. Never write "把 `ZZListener.cpp:49-61` 走一遍" and leave him to open the file — he studies from the chat, not from a jump-capable IDE, the reference project is Qt5 and he cannot build it locally. Observed failure mode: he answers 「我不知道 map 有哪些 key 啊，你问我代码相关要预习课或提问给出函数位置啊……跳转也做不到」 and the question becomes unanswerable. **The same rule applies to the 预习课 and 总结课 prose**: if you mention a function, paste the function, don't just cite its line numbers.
+
+### 4.3 复讲模式（知识点已有分数但偏低时）
+
+**触发**：某知识点已有 ① 分数但 ≤3（🔴 薄弱）、用户说「重讲 / 复讲」、或他在 Phase 3 选了「复习已学内容」。
+
+**流程**：① 域地图 → ② 复讲正文 → ③ **亲手实验** → ④ 验收。**没有自测题、没有追问轮** —— 他不是第一次学，再问答只会重复暴露同一个缺口。
+
+Rules:
+
+- **先读 `LEARNING_PROGRESS.md` 的薄弱点列** —— 那里写着上次卡住的准确位置（观察到的现象、错误认知、该先铺什么）。复讲只打这个点，不重复上次的预习课。
+- **验收用"面试官会怎么问"**：把知识点还原成一句面试官的话（「你这个界面为什么不用 Qt Designer？」「你这里为什么凭空造一个空控件？」），让他用 ≤3 句话答。**复讲要直接服务于面试，不能白练。**
+- **评分照常给**（Phase 6 四维表），写进 `Detailed History`；`Sub-topic Progress` 只升不降。
+- **评分宁保守**：复讲后仍 ≤3 就照实记 🔴 —— 复讲不等于掌握。（2026-09-21：D4.1 3.0→3.5、D4.2 2.5→3.0，两格复讲后仍在 🔴 档，照实填写。）
+- **⚠️ 追问一句「你刚跑出来的结果，能不能用在这道题上」—— 2026-09-22 新发现的模式。** 他会出现**「跑了实验，却不用证据」**：
+  - D4.3：他引「`QSplitter(横)` 里嵌 `QSplitter(纵)`」，但题目问的是**布局那一层**，两个缩略图列表根本不在 splitter 里
+  - D4.4：他刚跑出 `VThumList → QWidget`（早改嫁了），答题时仍按"它还是 MainWindow 的孩子"推理
+  → **这比知识错更值得盯** —— 说明他把"动手做"和"得出结论"分成了两件互不相干的事。**凡题目与他做过的实验相关，验收时就多问这一句**，把他的证据拉回答案里。
+- **面试话术类回答要检查"经不经得起追问"**，而不只是"对不对"。他答「.ui 可读性不如 cpp」时，正解不是补一条更好的理由，而是告诉他这条会被一句「Designer 里是可视化的，怎么会不可读」追穿。**已立的规矩：面试里不要讲"听起来对但经不起追问"的理由 —— 不加分，只递刀。**
+- **⚠️ 他的答题模式是「说现象，不说机制」—— 2026-09-22 连续三题确认。** D4.1 答「可读性 / 版本控制」· D4.2 答「`this` 建立依赖」（答了另一个"为什么"）· D4.3 答「两个类要分开管理」（答的是旁边的问题）—— 三次都在描述"我看到的"或"旁边的问题"，**没有一次落到"这段代码为什么必须这么写"**。诊断这一模式比扣单题的分更重要。
+  → **对策：给「为什么类问题」的三段式脚手架**（同时满足他 2026-09-15 明确要求的"先讲例题再做题"）：
+    ① **它做了什么** —— 一行
+    ② **不做会怎样** —— 一行，**必须带具体证据**（编译报错原文 / 截图现象 / `file:line`）
+    ③ **所以设计意图是什么** —— 一行
+  → **样例必须用他已经知道答案的题**（例如上一课刚验收过的），这样演示的是"格式"而不是"答案"；演示完**让他重答一次**，两次取高分（符合"只升不降"）。
+
+#### ⭐ 亲手实验（复讲必备；首讲也值得加）
+
+2026-09-21 之前的所有课都是「只读不写」—— 他读代码、答题、拿分，**但从没制造过一个现象**。首次加入实验环节后效果是质变：他亲手跑 `uic demo.ui -o ui_demo.h` 拿到 48 行生成物，又把 `addLayout` 改成 `addWidget` 拿到编译报错，还自己读出了报错里的 `QBoxLayout::addWidget`。**这是本项目学习方式的一次实质升级，别退回纯讲解。**
+
+Rules:
+
+- **必须他动手，我不代跑**（这是长期协作约定：编译/构建/跑程序不代跑）。给出三样东西后**等他把结果贴回来**：
+  ① 改哪一行 / 敲什么命令（**含绝对路径**）
+  ② 成功判据（例：「屏幕什么都不打印」+「目录里出现 `ui_demo.h`」+「约 48 行」）
+  ③ 常见失败怎么读。
+- **选「必然出结果、判据明确」的实验**：编译报错 > 运行现象 > "观察一下"。
+- **不预言没验证过的现象。** 预期不确定就明说「**我不预言现象**，你跑完告诉我」。编一个自己没跑过的结果，比不说更糟。
+- **命令一律给绝对路径**，并列两个版本的写法（`Set-Location` 进目录 / 输入输出都写全路径）。他曾在 `C:\Users\15628>` 下跑 `uic demo.ui`，而文件在 `D:\QT6\000workspace\test\` —— **uic 报的是有误导性的 `File 'demo.ui' is not valid`，不是 "not found"**。
+- **凡工具报错措辞可能误导的，先实测一次措辞再告诉他**（本次为诊断在 `$env:TEMP` 里跑过对照，**用完清理并告知**）。
+- **实验做完让他改回去**，并明确说一句。
+- **报错原文就是最好的教材**：让他把完整报错贴回来，逐行读。报错里的「类名::函数名」是**编译器真正找到的那个函数** —— 直接治他「同名不同物」的盲区（本题：`QBoxLayout::addWidget` 隐藏了 `QLayout::addWidget`，而 AI 正文里写的正是后者）。**引用函数签名一律拿报错原文核对，别凭记忆转述。**
+- **note 行要单独讲**：编译器提示「类型不相关，转换需要 `reinterpret_cast` / C 式强制转换」时，那是一句陷阱提示，必须明确否掉，并解释两个类型内存里装的东西不同。
 
 ### Per-Stage Question Style
 
@@ -534,11 +598,30 @@ Guidelines:
 - Only recommend reading 3-5 key files, not the whole codebase
 - Include at least one hands-on action (build / run / modify); when it is a comparison, **write out the actual commands/files for both sides**
 - External references only for concepts not explained in the codebase (SVD, DFT, 观察者模式)
-- **Never write, offer, or plan Obsidian notes.** The user maintains his own notes in his own vault. This skill's output ends at the chat reply plus the progress file — do not add a note-writing step.
+- **Never write, offer, or plan Obsidian notes — UNLESS he explicitly asks (exception added 2026-09-22).** The default is unchanged: his vault is his own, and this skill's output ends at the chat reply plus the progress file. **But** on 2026-09-22 he asked outright: 「我觉得是我以前的笔记太烂了，导致我的语言逻辑不在点上……请都改成你的形式，**我允许你大幅删改甚至全部删改**，我以前笔记太长了而且没有重点」. So when he *asks*, do it and follow the format below.
+- **笔记重写格式（仅当他授权时）** —— 目标是把**过程**压成**结论**。病根：旧笔记是把我每课的原始输出直接灌进去，导致同一知识点讲了三遍（预习课 → 总结课 → "重写版/融合定稿版"），中间还夹着评价报告、样例题、追问记录、学习指南、学习总结。`D3` 里「模块地图」出现 5 次。**所以重写时要：**
+  1. **文件头**：代码路径 / **行号约定**（说明本文行号指源工程还是他的工程）/ **面试定位**（对应 `interview.md` 哪一条；**没有就写明它是"场地"**）/ 进度行
+  2. **一个知识点 = 一节**，节内固定四段：**一句话结论** → **机制（表格 + 代码带 `file:line`）** → **取舍 / 为什么** → **一句话记忆**
+  3. **模块地图整个文件只出现一次**
+  4. **删**：评价报告、样例题、追问记录、学习指南、本次学习总结、「预习课 / 总结课」的分割、版本号（v2 / v3 / 重写版 / 定稿版）、重复的补课段落
+  5. **留**：真实代码 + 行号、表格、**本机实测证据**（跑出来的数字、报错原文、探针打印）、一句话记忆、**最好的 1–2 张 SVG**（不要每节都配图）
+  6. **动笔前先备份**到他工作区的 `.workbuddy/backup/obsidian-notes-<日期>/` —— **vault 里不留备份目录**（会污染他的库）
+  7. **先改一个文件做样板**给他看，风格确认后再批量 —— 避免 5 倍返工
+  8. 面试话术类内容（如"为什么不选 Designer"）**保留** —— 它直接服务面试
+  9. **改完必须验收**（2026-09-22 实操过一轮）：
+     - **格式**：用 PowerShell 核对每个文件的标题层级（`(?m)^# ` 只能命中 1 次）、` ```svg ` 块数、**BOM 必须没有**、压缩比
+     - **残留**：`Grep` 搜 `📖|🎓|🗺️|📚|📝|预习课|总结课|评价报告|轮追问|学习指南|本次学习总结|重写版|定稿版|融合定稿` → **必须零命中**
+     - **线索**：`Grep '^> \*\*进度\*\*'` 看各文件进度行是否统一
+  10. **进度行只标"是否学过"，不写具体分数** —— 分数会随复讲变化，写进笔记必然过期，还会和 `LEARNING_PROGRESS.md` 打架（2026-09-22 子任务从旧笔记抄分数就出过这个错：D1.1 写成 4.5 而表里是 3.5）。统一写「分数以 `LEARNING_PROGRESS.md` 为准」。
+  11. **多个文件可并行交给子任务改，但必须回头核对它们自己报告的可疑取舍** —— 2026-09-22 三个子任务里有一个主动标出「我把一句'我没实测'压成了确定陈述」，核对后改成只记事实。**没实测的比较不许留在笔记里**（他的规矩：结论不能超出证据）。
 
 ---
 
 ## Phase 9: Persist Progress
+
+> ⚠️ **动文件前先确认它在不在。** 2026-09-22 他把 `interview.md` 误删了（`git status` 显示 `D interview.md`）。另外 **`present_files` 成功 ≠ 文件存在** —— 我连续两轮 present 过一个已被删除的文件，工具只回报"已展示路径"，**不校验**。→ **present 关键文件之前，先 Glob / Test-Path 确认。**
+> ⚠️ **恢复被删文件时，别直接 `git restore`。** 先 `git show HEAD:<file> | Measure-Object -Line` 看版本行数 —— 那次 git 里是 **210 行的旧版**，工作区被删的是 **281 行的新版**，直接 restore 会悄悄退回旧版、丢掉后来补的内容。**正确做法：用手上最新的那份重建，并在回复里说清两版的差异。**
+> ⚠️ **每次课前后扫一眼 `git status`** —— 那次顺带发现他留了两处实验残留（`MainWindow.cpp` 的探针、`.pro` 里的 `FORMS += demo.ui`），后者会让 qmake 直接报错。**面试/交付前这类残留是硬伤。**
 
 Update `.skills/project-learner/references/LEARNING_PROGRESS.md`.
 
