@@ -1,0 +1,328 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "ZhuZhaoGUI",
+    "languages": ["cpp", "cmake", "qmake", "shell"],
+    "frameworks": ["Qt 6.11", "OpenCV 4.6"],
+    "description": "烛照 —— 机器视觉光度立体缺陷检测上位机。Qt 前端 + 光度立体算法动态库，用 4 张不同光照角度的灰度图反推物体表面高度场、梯度场、反射率图，用于缺陷检测。前后端分离（qmake/CMake 双构建体系），观察者模式驱动控件解耦，算法在子线程运行。",
+    "analyzedAt": "2026-09-23T12:00:00+08:00",
+    "gitCommitHash": "61b5bcd96f6854ed79e0e91e1701685e58a328da"
+  },
+  "nodes": [
+    { "id": "concept:photometric-stereo", "type": "concept", "name": "光度立体 (Photometric Stereo)", "summary": "核心算法原理：每张图的像素亮度 I = ρ·(N·L)，ρ 为反照率、N 为表面法向量、L 为光源方向。4 张不同光照方向的图给出 4 个方程 3 个未知量，用 SVD 伪逆解出 ρN，归一化得法向量 N、长度即反照率 ρ；再由 p=Nx/Nz、q=Ny/Nz 得梯度场，傅里叶域积分得高度场。", "tags": ["算法", "数学", "核心概念"], "complexity": "complex" },
+    { "id": "concept:observer-pattern", "type": "concept", "name": "观察者模式", "summary": "本项目控件解耦的关键设计：控件之间几乎不直接通信，统一经 ListenerManger 单例广播事件，由 MainWindow 集中响应。消息流转：notify(消息) → 所有注册过的监听者 RespondMessage(消息)。MESSAGE 枚举用 2 的幂（位或组合登记、位与拆包）。", "tags": ["设计模式", "解耦", "核心概念"], "complexity": "moderate" },
+    { "id": "concept:singleton-pattern", "type": "concept", "name": "单例模式", "summary": "项目里两种经典实现并存：ListenerManger 是饿汉式（main 之前静态 new，天然线程安全）；ZZLogMessage 是懒汉式 + 双检锁（首次调用才创建，static QMutex 是关键）。对照学习两种写法的取舍。", "tags": ["设计模式", "核心概念"], "complexity": "moderate" },
+    { "id": "concept:qt-multithreading", "type": "concept", "name": "Qt 多线程", "summary": "算法在 ZZProcessThread::run() 子线程执行，界面不卡顿。线程结束通过 QThread::finished 信号回主线程刷新界面 —— 全工程唯一跨对象信号槽。跨线程日志靠 Qt::AutoConnection 自动转 Queued 投递。", "tags": ["多线程", "Qt", "核心概念"], "complexity": "moderate" },
+
+    { "id": "file:src/PhotometricStereo/PhotometricStereo.h", "type": "file", "name": "PhotometricStereo.h", "filePath": "src/PhotometricStereo/PhotometricStereo.h", "summary": "算法库唯一公开头文件。定义导出宏 ZZ_API（编译 DLL 时 ALGO_EXPORT→dllexport，被前端使用时→dllimport），在 namespace ZhuZhao 中声明光度立体重建函数：输入 4 张不同光照灰度图 + Slant/Tilt 角度，输出高度场/梯度场/反照率图。", "tags": ["算法", "头文件", "DLL接口"], "complexity": "simple" },
+    { "id": "file:src/PhotometricStereo/PhotometricStereo.cpp", "type": "file", "name": "PhotometricStereo.cpp", "filePath": "src/PhotometricStereo/PhotometricStereo.cpp", "summary": "光度立体算法实现（DLL 核心）。三步走：① 由 Slant/Tilt 算 4 个光源单位向量组成 4×3 矩阵（注意 x/y 配法与常见教材相反，为对齐示例数据）；② 逐像素把 4 张图亮度组成向量 I，用 cv::invert(DECOMP_SVD) 求伪逆解 ρN，归一化得法向量、模长得反照率，p=Nx/Nz、q=Ny/Nz 得梯度；③ globalHeights() 频域积分求高度场，结果统一 normalize 到 0~255 8 位图。", "tags": ["算法", "OpenCV", "SVD", "实现"], "complexity": "complex", "languageNotes": "constexpr NUM_IMGS=4 是因为 cv::Vec<float,NUM_IMGS> 是模板需要编译期常量；想支持更多光源得换动态 cv::Mat。" },
+    { "id": "file:src/PhotometricStereo/ExampleMain.cpp", "type": "file", "name": "ExampleMain.cpp", "filePath": "src/PhotometricStereo/ExampleMain.cpp", "summary": "算法库独立验证程序（不依赖 Qt）。读 images/test_0..3.png（Tilts {0,90,180,270}，Slants 全 45°），调用算法后 imshow 源图/反照率图/高度图三个窗口，肉眼判断凹凸是否合理。用于在 GUI 之外单独确认算法库编得对、算得对。", "tags": ["算法", "验证程序", "测试"], "complexity": "simple" },
+    { "id": "config:src/PhotometricStereo/CMakeLists.txt", "type": "config", "name": "CMakeLists.txt (算法库)", "filePath": "src/PhotometricStereo/CMakeLists.txt", "summary": "算法动态库构建脚本。要点：MSVC 加 /utf-8（中文注释）；三类产物（exe/dll/lib）Debug+Release 各指一遍输出目录，统一落到 ../bin；find_package(OpenCV) 版本检查不过时回退手动指定路径；add_library SHARED + target_compile_definitions(PhotometricStereoDLL PRIVATE ALGO_EXPORT)（PRIVATE 只给本目标，避免 ExampleMain 导出方向反转）；源文件直接列出不用 GLOB。", "tags": ["构建", "CMake", "配置"], "complexity": "moderate" },
+
+    { "id": "file:src/ZhuZhaoGUI/main.cpp", "type": "file", "name": "main.cpp", "filePath": "src/ZhuZhaoGUI/main.cpp", "summary": "程序入口，顺序有讲究：① QApplication + fusion 样式；② ZZLogMessage::installMessageHandler() 接管 qDebug（必须早于任何日志）；③ 装载 :/Resouce/translate/language_ch.qm 翻译器（必须在 MainWindow 构造前，tr() 构造时即查表）；④ 显示主窗口进事件循环。", "tags": ["入口", "初始化", "国际化"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/MainWindow.h", "type": "file", "name": "MainWindow.h", "filePath": "src/ZhuZhaoGUI/MainWindow.h", "summary": "主窗口声明。继承 QMainWindow + ZZListener（修正源工程 private 继承笔误），持有 6 个成员：配置面板、日志面板、视觉窗口、横/纵缩略图列表、算法线程。声明 RespondMessage 消息响应与 OnProcessThreadFinished 线程完成槽。", "tags": ["主窗口", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/MainWindow.cpp", "type": "file", "name": "MainWindow.cpp", "filePath": "src/ZhuZhaoGUI/MainWindow.cpp", "summary": "主窗口实现 —— 全应用的组装中枢。InitWidget() 手写三层嵌套布局：左列 QSplitter（配置/日志）+ 右侧（纵向输入图栏 + 视觉窗口/横向结果条）。构造时位或注册三类消息；RespondMessage 里处理：UPDATE_SRCIMAGE→取参数刷纵向列表、RUNONCE→组参数塞线程 start()；OnProcessThreadFinished→取结果刷横向列表。连接两组信号槽：缩略图选中→视觉窗口、线程 finished→本窗口。", "tags": ["主窗口", "布局", "消息响应", "组装"], "complexity": "moderate", "languageNotes": "布局不传 parent 避免 setLayout 重复警告；QMainWindow 必须用 setCentralWidget。" },
+    { "id": "file:src/ZhuZhaoGUI/ZZListener.h", "type": "file", "name": "ZZListener.h", "filePath": "src/ZhuZhaoGUI/ZZListener.h", "summary": "观察者模式两个角色声明：ZZListener 抽象基类（纯虚 RespondMessage + 虚析构）与 ListenerManger 事件总管。MESSAGE 枚举 4 条消息全为 2 的幂（0x01/02/04/08），支持位或组合登记、位与拆包 —— 修正源工程 1,2,3,4 非 2 的幂导致误注册的隐患。", "tags": ["观察者模式", "事件", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZListener.cpp", "type": "file", "name": "ZZListener.cpp", "filePath": "src/ZhuZhaoGUI/ZZListener.cpp", "summary": "ListenerManger 实现（饿汉式单例，main 前 new）。notify() 查名册广播，无人订阅时 QWARNING 留痕（修源工程静默失败）；registerMessage() 用 kAllMessages 表格逐条位与拆包登记（QMap::operator[] 查不到自动插入），含查重防止重复响应。约定只在构造期注册，运行期注册会使迭代器失效。", "tags": ["观察者模式", "单例", "实现"], "complexity": "moderate" },
+    { "id": "config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "type": "config", "name": "ZhuZhaoGUI.pro", "filePath": "src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "summary": "前端 qmake 工程文件。c++17（Qt6 最低要求）；列全 14 个类源文件；OpenCV 用变量 OPENCV_ROOT 指本机路径，Debug/Release 各配 -lopencv_world460(d)；算法库 INCLUDEPATH $$PWD/../PhotometricStereo + -lPhotometricStereoDLL；DESTDIR 统一 ../bin；RC_ICONS 设 exe 图标。注意层级不可改（相对路径依赖）。", "tags": ["构建", "qmake", "配置"], "complexity": "moderate" },
+
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "type": "file", "name": "ZZConfigWidget.h", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "summary": "参数配置面板声明。持有 4 个 ZZOneParamWidget + Reset/RunOnce 按钮；GetPhotometricStereoParams() 是对外的唯一出口（数据只从这一扇门取出）。", "tags": ["配置面板", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "type": "file", "name": "ZZConfigWidget.cpp", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "summary": "参数配置面板实现。lambda CreateOneParam 创建 4 个参数控件避免复制 4 遍；角度初值写死与 src/bin/images 示例图配套（换数据要同步改）；OnResetBtnClicked→Reset 全部+notify(UPDATE_SRCIMAGE)；OnRunOnceBtnClicked 只 notify(RUNONCE) 一嗓子，组参数起线程由 MainWindow 做 —— 观察者模式解耦的典型体现。", "tags": ["配置面板", "实现", "消息触发"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "type": "file", "name": "ZZOneParamWidget.h", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "summary": "「一组参数」控件声明：标题 + Slant/Tilt 双精度输入框 + 加载图片按钮。已加载的图存成员 m_qImage 等被取，不立即上传。", "tags": ["参数控件", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "type": "file", "name": "ZZOneParamWidget.cpp", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "summary": "单参数控件实现。QFileDialog 选图（jpg/png/bmp），加载成功后【只 notify(UPDATE_SRCIMAGE) 不直接刷新别人】—— 本控件既不认识 MainWindow 也不认识缩略图列表，解耦彻底。constexpr 替换源工程拼写错的宏。", "tags": ["参数控件", "实现", "文件对话框"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "type": "file", "name": "ZZProcessThread.h", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "summary": "算法执行线程声明（全工程唯一 QThread）。QMutex 保护参数与结果两组数据；补上源工程缺失的 Q_OBJECT；删掉从未被读的 volatile bool（volatile 挡不住多线程竞争，真要可中止得用 std::atomic）。", "tags": ["多线程", "头文件"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "type": "file", "name": "ZZProcessThread.cpp", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "summary": "算法线程实现 —— 前后端的桥梁。run() 跑在子线程：① 锁内拷参数到本地（缩短持锁+防运行中被改）；② QImage 转灰度再 QImage2cvMat；③ 调 ZhuZhao::PhotometricStereo 算法；④ cvMat2QImage 转回写结果。函数返回后 QThread 自动 emit finished。不足 3 张图 QWARNING 跳过（光度立体最少 3 个方向）。", "tags": ["多线程", "实现", "前后端桥接"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "type": "file", "name": "ImageConvert.h", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "summary": "QImage ↔ cv::Mat 双向转换（Qt+OpenCV 混编必写）。cvMat2QImage 支持 8UC1/3/4，RGB888 默认 rgbSwapped（BGR→RGB）；QImage2cvMat 用 constBits+const_cast 包装指针，强烈建议 clone=true（cv::Mat 只包指针不复制数据，image 析构则悬空）。修：源工程非 inline 定义在头文件，第二个 cpp 包含即 LNK2005 重复定义。", "tags": ["工具", "图像转换", "Qt-OpenCV互操作"], "complexity": "moderate", "languageNotes": "inline 自由函数：每个包含它的翻译单元各有一份定义但链接器合并；ODR 安全。" },
+
+    { "id": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "type": "file", "name": "ZZLogMessage.h", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "summary": "全局日志器声明（懒汉式单例）。三大职责：接管 Qt 日志出口、写盘（log/yyyy-MM-dd/log.txt 超 1MB 轮转）、上屏（sigDebugHtmlData 信号）。QDEBUG/QWARNING/QCRITICAL 宏用 do{}while(0) 包裹 + 参数括号防优先级问题；故意不做 QFATAL（qFatal 是 printf 风格且会 abort）。", "tags": ["日志", "单例", "宏", "头文件"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "type": "file", "name": "ZZLogMessage.cpp", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget/../ZZLogMessage.cpp", "summary": "日志器实现，本项目工程质量最高的一页。outputMessage 被 Qt 回调：static QMutex 串行写盘（漏 static 每线程一把锁等于没加）；QIODevice::Text 让 Qt 自动换行；size() 必须在 close() 前取（修源工程反例）；rollLogFile 编号归档+99 份满时滚动前移兜底；emit 放锁外防同线程直连死锁。Instance() 双检锁的 static QMutex 是修源工程局部 mutex 的关键。卸载时还原前任处理器而非无脑 nullptr。", "tags": ["日志", "单例", "实现", "锁"], "complexity": "complex", "languageNotes": "跨天缓存 m_cachedDate/m_cachedPath 避免每条日志 mkpath 碰磁盘；emit 放锁外是 AutoConnection 直连场景的防死锁关键。" },
+    { "id": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "type": "file", "name": "ZZLogWidget.h", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "summary": "日志显示面板声明：QTextBrowser + Clear/Helper 两按钮。只订阅不生产日志。", "tags": ["日志面板", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp", "type": "file", "name": "ZZLogWidget.cpp", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp", "summary": "日志面板实现。document()->setMaximumBlockCount(2000) 限制内存（修源工程只增不减）；OnLogMessageAppended 追加+滚到底，槽函数永远在主线程执行（跨线程日志自动 Queued 排队过来）；Helper 按钮开课程网页。", "tags": ["日志面板", "实现"], "complexity": "simple" },
+
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "type": "file", "name": "HThumbnailList.h", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "summary": "横向缩略图列表声明（显示算法 3 张结果图）。每格 = QListWidgetItem + 自绘 LitImgItemWidget，靠 setItemWidget 绑定；SigSelectImageChanged(QImage&) 选中信号。与 VThumbnailList 只差三处：flow 方向/滚动条策略/item 尺寸算法。", "tags": ["缩略图", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "type": "file", "name": "HThumbnailList.cpp", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "summary": "横向列表实现。LeftToRight flow + 横向滚动条按需/纵向关掉；item 宽高按列表高度推（尽量正方形）；nextImage/lastImage 循环切换绕回边界；修源工程两处越界（> length() 差一）。细窄滚动条 QSS 自绘。", "tags": ["缩略图", "实现"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "type": "file", "name": "VThumbnailList.h", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "summary": "纵向缩略图列表声明（显示 4 张输入图）。与 HThumbnailList 结构相同，接口一致，是课程刻意做的横向/纵向对照。", "tags": ["缩略图", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "type": "file", "name": "VThumbnailList.cpp", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "summary": "纵向列表实现。TopToBottom flow + 竖向滚动条按需/横向关掉；item 宽高都按列表宽度推（正方形）。其余与 H 版一致 —— 两文件的差异清单是最佳学习材料。", "tags": ["缩略图", "实现"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "type": "file", "name": "LitImgItemWidget.h", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "summary": "缩略图「一格」声明。不用布局不用 QLabel，整格内容重写 paintEvent 自己画（好控制选中红框）。", "tags": ["缩略图", "自绘", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.cpp", "type": "file", "name": "LitImgItemWidget.cpp", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.cpp", "summary": "缩略图格子实现。paintEvent：空图画 :/Resouce/icon/nullImg.png 占位（修源工程 //多斜杠+占位图覆盖空状态的隐患）；有焦点红框/无焦点黑框。setFocusPolicy(StrongFocus) 否则焦点被列表项拦走红框永不出现。setImage 后 update() 立刻重绘。", "tags": ["缩略图", "自绘", "实现"], "complexity": "simple" },
+
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "type": "file", "name": "CustomGraphicsView.h", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "summary": "视觉窗口核心声明：滚轮缩放（0.1~50 倍限幅）、双击自适应、棋盘格背景、左下角像素坐标/RGB 信息条。QGraphicsView 子类重写 4 个事件。", "tags": ["视觉窗口", "头文件"], "complexity": "moderate" },
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "type": "file", "name": "CustomGraphicsView.cpp", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "summary": "视觉窗口核心实现。棋盘格底纹自绘于 paintEvent（不走 setBackgroundBrush，否则底纹跟图缩放）；FullViewportUpdate 消拖动残影；SceneRect 给极大 + ScrollHandDrag 拖拽平移；fitFrame() 取两方向中更缩的那个保证都装下，回写 m_dZoomValue 防倍率漂移；SetImage 里 static QMutex 串行化换图（图可能来自算法线程）。", "tags": ["视觉窗口", "实现", "交互"], "complexity": "complex" },
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "type": "file", "name": "CustomImageItem.h", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "summary": "视觉窗口里的图像元素声明。多继承 QObject+QGraphicsPixmapItem（为用信号）；hoverMoveEvent 上报坐标与 RGB；w/h 公开成员记录当前图尺寸。", "tags": ["视觉窗口", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.cpp", "type": "file", "name": "CustomImageItem.cpp", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.cpp", "summary": "图像元素实现。setAcceptHoverEvents(true) 是 hover 回调的前提；hover 坐标即 item 局部像素下标，qBound 同时夹上下界（修源工程只夹下界，右下角外取越界像素）。", "tags": ["视觉窗口", "实现", "事件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "type": "file", "name": "CustomImageView.h", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "summary": "视觉窗口外壳声明：包一层 CustomGraphicsView，提供 OnSendImage 槽给缩略图列表连接。分层原因：列表只关心「选中了一张图」，不该知道 GraphicsView 存在。", "tags": ["视觉窗口", "外壳", "头文件"], "complexity": "simple" },
+    { "id": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "type": "file", "name": "CustomImageView.cpp", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "summary": "视觉窗口外壳实现。薄薄一层：摆位交给布局，换图转发给内部视图。OnSendImage 是「列表→窗口」的统一入口。", "tags": ["视觉窗口", "实现"], "complexity": "simple" },
+
+    { "id": "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "type": "class", "name": "MainWindow", "filePath": "src/ZhuZhaoGUI/MainWindow.h", "summary": "主窗口：搭全部布局、注册监听、集中响应消息。继承 QMainWindow + ZZListener。构造里 InitWidget() 失败 throw bad_alloc 兜底。", "tags": ["主窗口", "观察者模式"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZListener.h:ZZListener", "type": "class", "name": "ZZListener", "filePath": "src/ZhuZhaoGUI/ZZListener.h", "summary": "监听者抽象基类：纯虚 RespondMessage 使其不可实例化，虚析构保证基类指针安全 delete。", "tags": ["观察者模式", "抽象基类"], "complexity": "simple" },
+    { "id": "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "type": "class", "name": "ListenerManger", "filePath": "src/ZhuZhaoGUI/ZZListener.h", "summary": "事件总管（饿汉式单例）：QMap<消息, QVector<监听者*>> 名册，notify 广播 / registerMessage 位拆包登记，禁拷贝禁赋值。", "tags": ["观察者模式", "单例", "事件总线"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h:ZZConfigWidget", "type": "class", "name": "ZZConfigWidget", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "summary": "参数配置面板：4 组参数控件 + Reset/RunOnce。GetPhotometricStereoParams() 是唯一数据出口。", "tags": ["配置面板"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h:ZZOneParamWidget", "type": "class", "name": "ZZOneParamWidget", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "summary": "单组参数控件：标题 + Slant/Tilt 输入框 + 加载按钮；图存 m_qImage 待取，加载后只广播消息不直接刷新别人。", "tags": ["参数控件"], "complexity": "simple" },
+    { "id": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "type": "class", "name": "ZZProcessThread", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "summary": "算法线程（唯一 QThread）：QMutex 保护输入输出两组数据；run() 里 QImage↔cv::Mat 转换并调用算法 DLL；结束自动 emit finished。", "tags": ["多线程", "算法调用"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "type": "class", "name": "ZZLogMessage", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "summary": "全局日志器（懒汉式+双检锁单例，QObject）：接管 Qt 日志出口、写盘轮转、sigDebugHtmlData 上屏。", "tags": ["日志", "单例"], "complexity": "complex" },
+    { "id": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h:ZZLogWidget", "type": "class", "name": "ZZLogWidget", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "summary": "日志面板：QTextBrowser 显示 + Clear/Helper 按钮，订阅 sigDebugHtmlData。", "tags": ["日志面板"], "complexity": "simple" },
+    { "id": "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "type": "class", "name": "HThumbnailList", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "summary": "横向缩略图列表（结果图）：QListWidget+setItemWidget+自绘格子，发 SigSelectImageChanged。", "tags": ["缩略图"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "type": "class", "name": "VThumbnailList", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "summary": "纵向缩略图列表（输入图）：与 H 版只差 flow/滚动条/尺寸算法三处。", "tags": ["缩略图"], "complexity": "moderate" },
+    { "id": "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget", "type": "class", "name": "LitImgItemWidget", "filePath": "src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "summary": "缩略图格子：paintEvent 自绘图像+边框（焦点红/无焦点黑），空图占位图兜底。", "tags": ["缩略图", "自绘"], "complexity": "simple" },
+    { "id": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "type": "class", "name": "CustomGraphicsView", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "summary": "视觉窗口核心：QGraphicsView 子类，滚轮缩放/双击自适应/棋盘格背景/像素信息条。", "tags": ["视觉窗口", "交互"], "complexity": "complex" },
+    { "id": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "type": "class", "name": "CustomImageItem", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "summary": "图像元素：QObject+QGraphicsPixmapItem 多继承，hover 上报坐标 RGB（RGBValue 信号）。", "tags": ["视觉窗口"], "complexity": "simple" },
+    { "id": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h:CustomImageView", "type": "class", "name": "CustomImageView", "filePath": "src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "summary": "视觉窗口外壳：包 CustomGraphicsView，OnSendImage 槽作列表→窗口统一入口。", "tags": ["视觉窗口", "外壳"], "complexity": "simple" },
+
+    { "id": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "type": "function", "name": "ZhuZhao::PhotometricStereo", "filePath": "src/PhotometricStereo/PhotometricStereo.cpp", "summary": "DLL 导出的光度立体重建主函数。参数校验→建 4×3 光源矩阵（Slant/Tilt→单位向量，x/y 与教材相反为对齐数据）→cv::invert SVD 伪逆→逐像素解 ρN、归一化→梯度场→globalHeights 积分→normalize 三张 8 位结果图。返回 0 成功 / -1 参数非法。", "tags": ["算法", "导出函数", "OpenCV"], "complexity": "complex" },
+    { "id": "function:src/PhotometricStereo/PhotometricStereo.cpp:globalHeights", "type": "function", "name": "globalHeights", "filePath": "src/PhotometricStereo/PhotometricStereo.cpp", "summary": "匿名命名空间内的频域积分：梯度场 dft 到频率域→逐频点做带正则项（lambda/mu 压高频噪声）的除法→逆变换回空域得高度场。直流分量留 0（平均高度未知，高度只有相对意义）。比空域逐点累加抗误差漂移。", "tags": ["算法", "傅里叶", "数学"], "complexity": "complex" },
+    { "id": "function:src/PhotometricStereo/ExampleMain.cpp:main", "type": "function", "name": "main (ExampleMain)", "filePath": "src/PhotometricStereo/ExampleMain.cpp", "summary": "独立验证程序入口：读 4 张 test_*.png→调算法→imshow 源图/反照率/高度图，肉眼验收凹凸。", "tags": ["验证", "入口"], "complexity": "simple" },
+    { "id": "function:src/ZhuZhaoGUI/main.cpp:main", "type": "function", "name": "main", "filePath": "src/ZhuZhaoGUI/main.cpp", "summary": "GUI 入口：fusion 样式→装日志处理器→装翻译器（顺序都不能反）→显示主窗口→exec() 事件循环。", "tags": ["入口", "初始化"], "complexity": "simple" },
+    { "id": "function:src/ZhuZhaoGUI/MainWindow.cpp:RespondMessage", "type": "function", "name": "MainWindow::RespondMessage", "filePath": "src/ZhuZhaoGUI/MainWindow.cpp", "summary": "观察者的核心落点：位与判断三类消息。UPDATE_SRCIMAGE→取 4 组参数刷纵向列表；RUNONCE→组参数塞线程 start()。整个「点按钮→跑算法」链路的调度中心。", "tags": ["消息响应", "调度"], "complexity": "moderate" },
+    { "id": "function:src/ZhuZhaoGUI/MainWindow.cpp:OnProcessThreadFinished", "type": "function", "name": "MainWindow::OnProcessThreadFinished", "filePath": "src/ZhuZhaoGUI/MainWindow.cpp", "summary": "线程 finished 信号的槽：取回 3 张结果图，清空并刷新横向缩略图条。主线程刷新界面的收尾。", "tags": ["信号槽", "刷新"], "complexity": "simple" },
+    { "id": "function:src/ZhuZhaoGUI/ZZListener.cpp:notify", "type": "function", "name": "ListenerManger::notify", "filePath": "src/ZhuZhaoGUI/ZZListener.cpp", "summary": "广播：按消息查名册，无人订阅 QWARNING 留痕；遍历调监听者 RespondMessage。运行期注册会使迭代器失效（约定只在构造期注册）。", "tags": ["观察者模式", "广播"], "complexity": "simple" },
+    { "id": "function:src/ZhuZhaoGUI/ZZListener.cpp:registerMessage", "type": "function", "name": "ListenerManger::registerMessage", "filePath": "src/ZhuZhaoGUI/ZZListener.cpp", "summary": "登记：kAllMessages 表格逐条位与拆包（新增消息只改一处），QMap::operator[] 自动插入，含查重防重复响应。", "tags": ["观察者模式", "登记"], "complexity": "moderate" },
+    { "id": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:outputMessage", "type": "function", "name": "outputMessage", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "summary": "被 Qt 回调的日志处理函数：static QMutex 串行写盘（关键在 static）；级别定色；锁作用域收窄使 emit 落锁外（防同线程直连死锁）；递归禁区（不能用 QDEBUG 报错）。", "tags": ["日志", "回调", "锁"], "complexity": "complex" },
+    { "id": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:rollLogFile", "type": "function", "name": "rollLogFile", "filePath": "src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "summary": "日志归档：找空编号 rename（用 exists() 判断而非魔数猜大小、检查 rename 返回值）；99 份满时删最老滚动前移，兜底失败删当前保证能继续写。", "tags": ["日志", "文件轮转"], "complexity": "moderate" },
+    { "id": "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "type": "function", "name": "ZZProcessThread::run", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "summary": "子线程执行体：锁内拷参数→转灰度 cv::Mat→调算法 DLL→结果转 QImage 写回。返回后 QThread 自动 emit finished。", "tags": ["多线程", "算法调用"], "complexity": "moderate" },
+    { "id": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:cvMat2QImage", "type": "function", "name": "cvMat2QImage", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "summary": "cv::Mat→QImage：按 type 分派 8UC1/3/4；clone 参数控制是否脱离原内存；BGR→RGB 默认交换。", "tags": ["图像转换", "inline"], "complexity": "moderate" },
+    { "id": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:QImage2cvMat", "type": "function", "name": "QImage2cvMat", "filePath": "src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "summary": "QImage→cv::Mat：constBits+const_cast 包装指针零拷贝构建，clone 强烈建议 true（Mat 只包指针，image 析构即悬空）；RGB888 需 cvtColor 换 BGR。", "tags": ["图像转换", "inline"], "complexity": "moderate" },
+
+    { "id": "document:DEV_SPEC.md", "type": "document", "name": "DEV_SPEC.md", "filePath": "DEV_SPEC.md", "summary": "开发者规格书（复刻目标规格+本机适配记录）：项目概述、核心特点（前后端分离/观察者/双单例/多线程/手写布局）、技术选型与课程环境差异对照、光度立体数学链路四步推导、系统架构图与模块说明、消息流数据流、五阶段 27 步排期、已知代码隐患清单。理解本项目的第一入口。", "tags": ["文档", "规格书", "架构"], "complexity": "moderate" },
+    { "id": "document:SPRINT.md", "type": "document", "name": "SPRINT.md", "filePath": "SPRINT.md", "summary": "迭代冲刺计划文档，配合 DEV_SPEC 的阶段排期使用。", "tags": ["文档", "排期"], "complexity": "simple" },
+    { "id": "document:interview.md", "type": "document", "name": "interview.md", "filePath": "interview.md", "summary": "面试/复盘向文档：围绕项目技术点（设计模式、多线程、Qt 机制）整理问答。", "tags": ["文档", "面试"], "complexity": "simple" },
+    { "id": "config:.gitignore", "type": "config", "name": ".gitignore", "filePath": ".gitignore", "summary": "Git 忽略规则：排除构建产物与运行资源。", "tags": ["配置", "git"], "complexity": "simple" }
+  ],
+  "edges": [
+    { "source": "file:src/PhotometricStereo/PhotometricStereo.h", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/PhotometricStereo/PhotometricStereo.cpp", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/PhotometricStereo/PhotometricStereo.cpp", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:globalHeights", "type": "contains", "weight": 1.0 },
+    { "source": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:globalHeights", "type": "calls", "weight": 0.8 },
+    { "source": "file:src/PhotometricStereo/PhotometricStereo.cpp", "target": "concept:photometric-stereo", "type": "related", "weight": 0.5 },
+    { "source": "file:src/PhotometricStereo/ExampleMain.cpp", "target": "function:src/PhotometricStereo/ExampleMain.cpp:main", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/PhotometricStereo/ExampleMain.cpp", "target": "file:src/PhotometricStereo/PhotometricStereo.h", "type": "imports", "weight": 0.7 },
+    { "source": "function:src/PhotometricStereo/ExampleMain.cpp:main", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "type": "calls", "weight": 0.8 },
+    { "source": "config:src/PhotometricStereo/CMakeLists.txt", "target": "file:src/PhotometricStereo/PhotometricStereo.cpp", "type": "configures", "weight": 0.6 },
+    { "source": "config:src/PhotometricStereo/CMakeLists.txt", "target": "file:src/PhotometricStereo/ExampleMain.cpp", "type": "configures", "weight": 0.6 },
+
+    { "source": "file:src/ZhuZhaoGUI/main.cpp", "target": "function:src/ZhuZhaoGUI/main.cpp:main", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/main.cpp", "target": "file:src/ZhuZhaoGUI/MainWindow.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/main.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "type": "imports", "weight": 0.7 },
+    { "source": "function:src/ZhuZhaoGUI/main.cpp:main", "target": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "type": "calls", "weight": 0.8 },
+
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.h", "target": "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.h", "target": "file:src/ZhuZhaoGUI/ZZListener.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "target": "class:src/ZhuZhaoGUI/ZZListener.h:ZZListener", "type": "inherits", "weight": 0.9 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/MainWindow.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "function:src/ZhuZhaoGUI/MainWindow.cpp:RespondMessage", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "function:src/ZhuZhaoGUI/MainWindow.cpp:OnProcessThreadFinished", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/MainWindow.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "type": "imports", "weight": 0.7 },
+    { "source": "function:src/ZhuZhaoGUI/MainWindow.cpp:RespondMessage", "target": "function:src/ZhuZhaoGUI/ZZListener.cpp:notify", "type": "related", "weight": 0.5 },
+    { "source": "function:src/ZhuZhaoGUI/MainWindow.cpp:OnProcessThreadFinished", "target": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "type": "calls", "weight": 0.8 },
+    { "source": "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "target": "concept:observer-pattern", "type": "related", "weight": 0.5 },
+
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.h", "target": "class:src/ZhuZhaoGUI/ZZListener.h:ZZListener", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.h", "target": "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.cpp", "target": "function:src/ZhuZhaoGUI/ZZListener.cpp:notify", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.cpp", "target": "function:src/ZhuZhaoGUI/ZZListener.cpp:registerMessage", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.cpp", "target": "file:src/ZhuZhaoGUI/ZZListener.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "target": "concept:singleton-pattern", "type": "related", "weight": 0.5 },
+    { "source": "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "target": "concept:observer-pattern", "type": "related", "weight": 0.5 },
+    { "source": "file:src/ZhuZhaoGUI/ZZListener.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "type": "imports", "weight": 0.7 },
+
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "target": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h:ZZConfigWidget", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZListener.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h:ZZConfigWidget", "target": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h:ZZOneParamWidget", "type": "depends_on", "weight": 0.6 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "target": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h:ZZOneParamWidget", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZListener.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "target": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "target": "file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "target": "file:src/PhotometricStereo/PhotometricStereo.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "target": "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "type": "contains", "weight": 1.0 },
+    { "source": "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "target": "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "type": "calls", "weight": 0.8 },
+    { "source": "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "target": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:QImage2cvMat", "type": "calls", "weight": 0.8 },
+    { "source": "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "target": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:cvMat2QImage", "type": "calls", "weight": 0.8 },
+    { "source": "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "target": "concept:qt-multithreading", "type": "related", "weight": 0.5 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "target": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:cvMat2QImage", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "target": "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:QImage2cvMat", "type": "contains", "weight": 1.0 },
+
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "target": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "target": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:outputMessage", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "target": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:rollLogFile", "type": "contains", "weight": 1.0 },
+    { "source": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:outputMessage", "target": "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:rollLogFile", "type": "calls", "weight": 0.8 },
+    { "source": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "target": "concept:singleton-pattern", "type": "related", "weight": 0.5 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "target": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h:ZZLogWidget", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h:ZZLogWidget", "target": "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "type": "depends_on", "weight": 0.6 },
+
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget", "type": "depends_on", "weight": 0.6 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget", "type": "depends_on", "weight": 0.6 },
+    { "source": "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "type": "similar_to", "weight": 0.5 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "target": "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.cpp", "target": "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "type": "imports", "weight": 0.7 },
+
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "type": "depends_on", "weight": 0.6 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h:CustomImageView", "type": "contains", "weight": 1.0 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "type": "imports", "weight": 0.7 },
+    { "source": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "target": "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "type": "imports", "weight": 0.7 },
+    { "source": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h:CustomImageView", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "type": "depends_on", "weight": 0.6 },
+    { "source": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "target": "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "type": "related", "weight": 0.5 },
+
+    { "source": "config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "target": "file:src/ZhuZhaoGUI/main.cpp", "type": "configures", "weight": 0.6 },
+    { "source": "config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "target": "file:src/ZhuZhaoGUI/MainWindow.cpp", "type": "configures", "weight": 0.6 },
+    { "source": "config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "target": "config:src/PhotometricStereo/CMakeLists.txt", "type": "related", "weight": 0.5 },
+    { "source": "document:DEV_SPEC.md", "target": "file:src/PhotometricStereo/PhotometricStereo.cpp", "type": "documents", "weight": 0.5 },
+    { "source": "document:DEV_SPEC.md", "target": "file:src/ZhuZhaoGUI/MainWindow.cpp", "type": "documents", "weight": 0.5 },
+    { "source": "document:DEV_SPEC.md", "target": "concept:photometric-stereo", "type": "documents", "weight": 0.5 },
+    { "source": "document:SPRINT.md", "target": "document:DEV_SPEC.md", "type": "related", "weight": 0.5 },
+    { "source": "document:interview.md", "target": "document:DEV_SPEC.md", "type": "related", "weight": 0.5 }
+  ],
+  "layers": [
+    {
+      "id": "layer:algorithm",
+      "name": "算法后端层 (PhotometricStereo DLL)",
+      "description": "光度立体算法动态库，CMake 构建，产物 PhotometricStereoDLL.dll。前后端唯一跨层接口是一个 C 风格导出函数。含独立验证程序 ExampleMain。",
+      "nodeIds": ["file:src/PhotometricStereo/PhotometricStereo.h", "file:src/PhotometricStereo/PhotometricStereo.cpp", "file:src/PhotometricStereo/ExampleMain.cpp", "config:src/PhotometricStereo/CMakeLists.txt", "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "function:src/PhotometricStereo/PhotometricStereo.cpp:globalHeights", "function:src/PhotometricStereo/ExampleMain.cpp:main", "concept:photometric-stereo"]
+    },
+    {
+      "id": "layer:entry",
+      "name": "应用入口层 (Entry)",
+      "description": "GUI 程序入口与主窗口。main.cpp 控制初始化顺序（日志→翻译→窗口）；MainWindow 组装全部布局并作为观察者集中响应消息。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/main.cpp", "file:src/ZhuZhaoGUI/MainWindow.h", "file:src/ZhuZhaoGUI/MainWindow.cpp", "function:src/ZhuZhaoGUI/main.cpp:main", "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "function:src/ZhuZhaoGUI/MainWindow.cpp:RespondMessage", "function:src/ZhuZhaoGUI/MainWindow.cpp:OnProcessThreadFinished"]
+    },
+    {
+      "id": "layer:infrastructure",
+      "name": "基础设施层 (事件与日志)",
+      "description": "全局通信与日志两大基础设施。观察者模式（ZZListener/ListenerManger 饿汉单例）解耦控件；ZZLogMessage（懒汉+双检锁单例）接管 qDebug 写盘+上屏。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZListener.h", "file:src/ZhuZhaoGUI/ZZListener.cpp", "class:src/ZhuZhaoGUI/ZZListener.h:ZZListener", "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "function:src/ZhuZhaoGUI/ZZListener.cpp:notify", "function:src/ZhuZhaoGUI/ZZListener.cpp:registerMessage", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:outputMessage", "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:rollLogFile", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp", "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.h:ZZLogWidget", "concept:observer-pattern", "concept:singleton-pattern", "concept:qt-multithreading"]
+    },
+    {
+      "id": "layer:config",
+      "name": "参数配置层 (Config + 算法线程)",
+      "description": "输入侧：4 组参数控件（图+角度）、算法执行线程（QThread+QMutex）、Qt/OpenCV 图像格式转换工具。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h:ZZConfigWidget", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h:ZZOneParamWidget", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:cvMat2QImage", "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:QImage2cvMat"]
+    },
+    {
+      "id": "layer:display",
+      "name": "图像展示层 (缩略图 + 视觉窗口)",
+      "description": "输出侧：横/纵缩略图列表（QListWidget+setItemWidget+自绘格子）与视觉窗口（QGraphicsView 三件套：缩放/自适应/棋盘格/像素信息）。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h", "file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h", "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h", "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.cpp", "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.cpp", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h:CustomImageView"]
+    },
+    {
+      "id": "layer:build",
+      "name": "构建系统层 (Build)",
+      "description": "双构建体系：前端 qmake（.pro，链接 OpenCV 与算法 DLL），算法 CMake（产物统一落 ../bin）。层级不可改（相对路径依赖）。",
+      "nodeIds": ["config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "config:.gitignore"]
+    },
+    {
+      "id": "layer:docs",
+      "name": "文档层 (Docs)",
+      "description": "项目文档：DEV_SPEC 规格书（架构/数学链路/排期/隐患清单）、SPRINT 冲刺计划、interview 面试问答。",
+      "nodeIds": ["document:DEV_SPEC.md", "document:SPRINT.md", "document:interview.md"]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "从规格书开始：这个项目要干什么",
+      "description": "先读 DEV_SPEC.md 建立全局认知：烛照 = Qt 前端 + 光度立体算法 DLL，4 张不同光照图反推高度/梯度/反照率。注意「核心特点」五条（前后端分离/观察者/双单例/多线程/手写布局），它们就是接下来所有代码的组织原则。",
+      "nodeIds": ["document:DEV_SPEC.md"],
+      "languageLesson": "DEV_SPEC 第 5.1 节的 ASCII 架构图与 5.4 节消息流，是理解全项目的地图 —— 建议打印或分屏对照阅读。"
+    },
+    {
+      "order": 2,
+      "title": "程序入口：初始化顺序为什么不能乱",
+      "description": "main.cpp 只有 30 行但顺序全是坑：日志 handler 必须早于任何 qDebug；翻译器必须在 MainWindow 构造前装（tr() 构造那一刻就查表）。体会「资源初始化即声明」在 GUI 程序入口处的具体形态。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/main.cpp", "function:src/ZhuZhaoGUI/main.cpp:main"],
+      "languageLesson": "qInstallMessageHandler 是钩子函数：把函数指针交给 Qt，此后所有 qDebug 都改道。这是 C 回调在 C++ 框架里的典型用法。"
+    },
+    {
+      "order": 3,
+      "title": "观察者模式：控件怎么做到互不认识",
+      "description": "ZZListener.h/.cpp 定义了消息枚举（2 的幂！）、抽象监听者、事件总管单例。重点看 registerMessage 的位拆包表格写法和 notify 的广播循环。对照 concept:singleton-pattern 理解饿汉式与懒汉式两种单例的取舍。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZListener.h", "file:src/ZhuZhaoGUI/ZZListener.cpp", "class:src/ZhuZhaoGUI/ZZListener.h:ZZListener", "class:src/ZhuZhaoGUI/ZZListener.h:ListenerManger", "concept:observer-pattern", "concept:singleton-pattern"],
+      "languageLesson": "位运算做消息组合：enum 值必须是 2 的幂，才能位或组合、位与拆包。源工程 1,2,3,4 的写法会让 RESET=3 误命中 1|2。"
+    },
+    {
+      "order": 4,
+      "title": "主窗口：全应用的组装中枢",
+      "description": "MainWindow.cpp 的 InitWidget() 手写三层嵌套布局（左 Splitter 配置/日志 + 右侧输入栏/视觉窗口/结果条）。RespondMessage 是观察者模式在这边的落点：UPDATE_SRCIMAGE 刷输入列表、RUNONCE 组参数起线程。全工程唯一跨对象信号槽也在这里（finished→刷新）。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/MainWindow.cpp", "class:src/ZhuZhaoGUI/MainWindow.h:MainWindow", "function:src/ZhuZhaoGUI/MainWindow.cpp:RespondMessage", "function:src/ZhuZhaoGUI/MainWindow.cpp:OnProcessThreadFinished"],
+      "languageLesson": "布局不传 parent、最后 setLayout；QMainWindow 必须 setCentralWidget —— 两个新手常踩的 Qt 布局规则。"
+    },
+    {
+      "order": 5,
+      "title": "参数输入：一组控件的自白",
+      "description": "ZZOneParamWidget（标题+角度输入+加载按钮）加载完图只 notify 一嗓子，不直接刷新任何人；ZZConfigWidget 用 lambda 批量创建 4 个并持有唯一数据出口 GetPhotometricStereoParams。观察解耦如何落到实处。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.cpp", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.cpp", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZConfigWidget.h:ZZConfigWidget", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZOneParamWidget.h:ZZOneParamWidget"]
+    },
+    {
+      "order": 6,
+      "title": "多线程：算法不卡界面的秘密",
+      "description": "ZZProcessThread 是全工程唯一 QThread。run() 在子线程：锁内拷参数（缩短持锁+防修改）→转灰度 Mat→调算法→转回 QImage 写回。主线程只组织参数和刷新界面。注意 QMutex 的存在意义与 Q_OBJECT 为何不能省。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h", "file:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp", "class:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.h:ZZProcessThread", "function:src/ZhuZhaoGUI/ZZConfigWidget/ZZProcessThread.cpp:run", "concept:qt-multithreading"],
+      "languageLesson": "「锁内只做拷贝、锁外做计算」是多线程数据交接的经典范式；QThread 的 finished 信号让子线程→主线程的通信自动排队。"
+    },
+    {
+      "order": 7,
+      "title": "图像桥梁：Qt 与 OpenCV 互认对方",
+      "description": "ImageConvert.h 两个 inline 自由函数打通 QImage↔cv::Mat。重点：零拷贝包装的悬空风险（clone=true 强烈建议）、BGR/RGB 字节序交换。源工程漏 inline 引发的 LNK2005 是头文件函数定义的经典反面教材。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h", "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:cvMat2QImage", "function:src/ZhuZhaoGUI/ZZConfigWidget/ImageConvert.h:QImage2cvMat"],
+      "languageLesson": "ODR（单一定义规则）：头文件里的非 inline 函数定义会被每个包含它的翻译单元各生成一份，链接器报重复定义。inline 语义正是为此设计。"
+    },
+    {
+      "order": 8,
+      "title": "算法核心：光度立体的数学链路",
+      "description": "PhotometricStereo.cpp 是技术核心：Slant/Tilt→光源向量（注意 x/y 与教材相反）→SVD 伪逆解超定方程 ρN→归一化得法向量/反照率→梯度场。逐像素循环里看 cv::Vec 和 at<> 的用法。",
+      "nodeIds": ["file:src/PhotometricStereo/PhotometricStereo.h", "file:src/PhotometricStereo/PhotometricStereo.cpp", "function:src/PhotometricStereo/PhotometricStereo.cpp:PhotometricStereo", "concept:photometric-stereo"],
+      "languageLesson": "cv::invert + DECOMP_SVD 求伪逆：4×3 非方阵无常规逆，最小二乘解靠它。constexpr NUM_IMGS=4 是模板参数的编译期要求。"
+    },
+    {
+      "order": 9,
+      "title": "最数学的一步：频域积分求高度",
+      "description": "globalHeights 把梯度场 dft 到频域，逐频点做带正则项的除法再逆变换。为什么不空域累加？误差会一路漂移；频域是全局解。直流分量留 0 —— 高度只有相对意义。ExampleMain 是算法的独立验收程序，跑起来肉眼看凹凸。",
+      "nodeIds": ["function:src/PhotometricStereo/PhotometricStereo.cpp:globalHeights", "file:src/PhotometricStereo/ExampleMain.cpp", "function:src/PhotometricStereo/ExampleMain.cpp:main"]
+    },
+    {
+      "order": 10,
+      "title": "日志系统：工程质量最高的一页",
+      "description": "ZZLogMessage.cpp 全是细节：static QMutex（漏 static 锁等于没加）、size() 在 close() 前取、emit 放锁外防死锁、双检锁的 static mutex、卸载还原前任 handler。对照概念节点把两种单例实现彻底吃透。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp", "class:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.h:ZZLogMessage", "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:outputMessage", "function:src/ZhuZhaoGUI/ZZLogWidget/ZZLogMessage.cpp:rollLogFile", "file:src/ZhuZhaoGUI/ZZLogWidget/ZZLogWidget.cpp"],
+      "languageLesson": "锁的作用域设计：写盘在锁内、emit 在锁外 —— 同线程直连槽若在锁内执行，槽里再打日志会回来抢同一把锁，死锁。"
+    },
+    {
+      "order": 11,
+      "title": "缩略图：列表与自绘控件",
+      "description": "H/VThumbnailList 结构相同只差三处（flow/滚动条/尺寸算法）—— 最好的对照学习材料。LitImgItemWidget 重写 paintEvent 自绘图像+选中红框，体会「不用布局也能画控件」。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.cpp", "file:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.cpp", "file:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.cpp", "class:src/ZhuZhaoGUI/ZZThumWidget/HThumbnailList.h:HThumbnailList", "class:src/ZhuZhaoGUI/ZZThumWidget/VThumbnailList.h:VThumbnailList", "class:src/ZhuZhaoGUI/ZZThumWidget/LitImgItemWidget.h:LitImgItemWidget"]
+    },
+    {
+      "order": 12,
+      "title": "视觉窗口：GraphicsView 三件套",
+      "description": "CustomGraphicsView（缩放/自适应/棋盘格/信息条）+ CustomImageItem（hover 上报 RGB）+ CustomImageView（薄外壳）。收尾把整条链路串起来：缩略图选中→OnSendImage→SetImage→fitFrame/onCenter→图像上屏。",
+      "nodeIds": ["file:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.cpp", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.cpp", "file:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.cpp", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomGraphicsView.h:CustomGraphicsView", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageItem.h:CustomImageItem", "class:src/ZhuZhaoGUI/ZZViewWidget/CustomImageView.h:CustomImageView"]
+    },
+    {
+      "order": 13,
+      "title": "构建体系：两个世界的汇合",
+      "description": "前端 qmake（.pro：OpenCV 路径变量化、Debug/Release 各配 DLL、DESTDIR 统一 ../bin）与算法 CMake（PRIVATE ALGO_EXPORT 只给本目标、产物三目录六指一遍）。注意层级不可改的相对路径依赖。最后回看 DEV_SPEC 的隐患清单收尾。",
+      "nodeIds": ["config:src/ZhuZhaoGUI/ZhuZhaoGUI.pro", "config:src/PhotometricStereo/CMakeLists.txt", "config:.gitignore", "document:DEV_SPEC.md"]
+    }
+  ]
+}
